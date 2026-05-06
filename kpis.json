@@ -1,0 +1,84 @@
+{
+  "updated_at": "2026-04-27T10:00:00",
+  "kpis": {
+    "calls": {
+      "value": 128547,
+      "trend": "+2.4% vs yesterday"
+    },
+    "users": {
+      "value": 847,
+      "trend": "跨 7 部门"
+    },
+    "penetration": {
+      "value": 73.2,
+      "trend": "目标 80%"
+    },
+    "apps": {
+      "value": 68,
+      "trend": "+3 本月新增"
+    },
+    "tokens": {
+      "value": 2847,
+      "unit": "M",
+      "trend": "累计消耗"
+    }
+  },
+  "departments": [
+    {
+      "id": "asset",
+      "name": "Asset",
+      "name_zh": "资产管理",
+      "active_users": 282,
+      "total_headcount": 300,
+      "usage_pct": 94.0
+    },
+    {
+      "id": "idc",
+      "name": "IDC",
+      "name_zh": "数据中心",
+      "active_users": 131,
+      "total_headcount": 150,
+      "usage_pct": 87.0
+    },
+    {
+      "id": "finance",
+      "name": "财务",
+      "name_zh": "财务",
+      "active_users": 82,
+      "total_headcount": 100,
+      "usage_pct": 82.0
+    },
+    {
+      "id": "renewables",
+      "name": "新能源",
+      "name_zh": "新能源",
+      "active_users": 152,
+      "total_headcount": 200,
+      "usage_pct": 76.0
+    },
+    {
+      "id": "legal",
+      "name": "Legal/IA/PR",
+      "name_zh": "法务/审计/公关",
+      "active_users": 50,
+      "total_headcount": 70,
+      "usage_pct": 71.0
+    },
+    {
+      "id": "hr",
+      "name": "HR",
+      "name_zh": "人力资源",
+      "active_users": 52,
+      "total_headcount": 80,
+      "usage_pct": 65.0
+    },
+    {
+      "id": "fund",
+      "name": "基金/其他",
+      "name_zh": "基金/其他",
+      "active_users": 29,
+      "total_headcount": 50,
+      "usage_pct": 58.0
+    }
+  ]
+}
