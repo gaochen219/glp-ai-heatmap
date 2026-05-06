@@ -129,6 +129,8 @@
   .kpi-trend {
     font-size: 9px; color: var(--green-light);
   }
+  .kpi-trend.trend-up { color: var(--green-neon); }
+  .kpi-trend.trend-down { color: #ff6b6b; }
   .kpi-item::after {
     content: '';
     position: absolute; bottom: 0; left: 20%; right: 20%; height: 2px;
@@ -386,6 +388,53 @@
     border: 1px dashed rgba(45,138,80,0.3);
   }
 
+  /* ── Yesterday comparison card ── */
+  .compare-row { margin-bottom: 10px; }
+  .compare-row:last-child { margin-bottom: 0; }
+  .compare-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 10px; color: var(--text-dim);
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+  .compare-head .metric-name { color: var(--green-light); font-weight: 600; }
+  .compare-head .change-rate {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .compare-head .change-rate.up { color: var(--green-neon); text-shadow: 0 0 6px rgba(93,255,159,0.4); }
+  .compare-head .change-rate.down { color: #ff6b6b; text-shadow: 0 0 6px rgba(255,107,107,0.4); }
+  .compare-bar-line {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 9px; color: var(--text-dim);
+    margin-bottom: 3px;
+  }
+  .compare-bar-line:last-child { margin-bottom: 0; }
+  .compare-bar-line .day-label { width: 28px; flex-shrink: 0; }
+  .compare-bar-line .day-value {
+    width: 60px; flex-shrink: 0; text-align: right;
+    color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .compare-bar-bg {
+    flex: 1; height: 5px;
+    background: rgba(27,107,58,0.15);
+    border-radius: 3px; overflow: hidden;
+  }
+  .compare-bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    transition: width 1.2s cubic-bezier(0.25,0.46,0.45,0.94);
+  }
+  .compare-bar-fill.today {
+    background: linear-gradient(90deg, var(--green-primary), var(--green-neon));
+    box-shadow: 0 0 4px rgba(93,255,159,0.4);
+  }
+  .compare-bar-fill.yday {
+    background: rgba(122, 184, 144, 0.35);
+  }
+
   /* ── FOOTER ── */
   #footer {
     height: var(--footer-h);
@@ -437,7 +486,7 @@
     <div class="kpi-item">
       <div class="kpi-label">今日调用量</div>
       <div class="kpi-value" id="kpi-calls">0</div>
-      <div class="kpi-trend">↑ +2.4% vs yesterday</div>
+      <div class="kpi-trend" id="kpi-calls-trend">—</div>
     </div>
     <div class="kpi-item">
       <div class="kpi-label">活跃用户</div>
@@ -457,7 +506,7 @@
     <div class="kpi-item">
       <div class="kpi-label">今日 Tokens</div>
       <div class="kpi-value" id="kpi-tokens">0M</div>
-      <div class="kpi-trend">累计消耗</div>
+      <div class="kpi-trend" id="kpi-tokens-trend">—</div>
     </div>
   </div>
 
@@ -491,8 +540,41 @@
         <div id="activity-feed"></div>
       </div>
       <div class="sidebar-section">
-        <div class="sidebar-title">部门使用排行</div>
-        <div id="dept-bars"></div>
+        <div class="sidebar-title">昨日同期对比</div>
+        <div id="compare-card">
+          <div class="compare-row" data-metric="calls">
+            <div class="compare-head">
+              <span class="metric-name">调用量</span>
+              <span class="change-rate" id="cmp-calls-rate">—</span>
+            </div>
+            <div class="compare-bar-line">
+              <span class="day-label">今日</span>
+              <div class="compare-bar-bg"><div class="compare-bar-fill today" id="cmp-calls-today-bar"></div></div>
+              <span class="day-value" id="cmp-calls-today-val">—</span>
+            </div>
+            <div class="compare-bar-line">
+              <span class="day-label">昨日</span>
+              <div class="compare-bar-bg"><div class="compare-bar-fill yday" id="cmp-calls-yday-bar"></div></div>
+              <span class="day-value" id="cmp-calls-yday-val">—</span>
+            </div>
+          </div>
+          <div class="compare-row" data-metric="tokens">
+            <div class="compare-head">
+              <span class="metric-name">Tokens</span>
+              <span class="change-rate" id="cmp-tokens-rate">—</span>
+            </div>
+            <div class="compare-bar-line">
+              <span class="day-label">今日</span>
+              <div class="compare-bar-bg"><div class="compare-bar-fill today" id="cmp-tokens-today-bar"></div></div>
+              <span class="day-value" id="cmp-tokens-today-val">—</span>
+            </div>
+            <div class="compare-bar-line">
+              <span class="day-label">昨日</span>
+              <div class="compare-bar-bg"><div class="compare-bar-fill yday" id="cmp-tokens-yday-bar"></div></div>
+              <span class="day-value" id="cmp-tokens-yday-val">—</span>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-title">图例</div>
@@ -769,15 +851,51 @@ updateClock();
 setInterval(updateClock, 1000);
 
 // ═══════════════════════════════════════════════════════
-//  KPI COUNTERS
+//  KPI COUNTERS + LIVE DATA
 // ═══════════════════════════════════════════════════════
-const kpiState = {
-  calls: 128547,
-  users: 847,
-  tokens: 2847
+// State mirrors DataHub /ai-heatmap/llm-data schema:
+//   calls = requests_today, tokens = tokens_today (raw, then formatted to M)
+const kpiState = { calls: 0, tokens: 0, users: 0, apps: 0, pct: 0 };
+
+// Fallback used when kpis.json fetch fails (e.g. double-clicked file://).
+const FALLBACK_DATA = {
+  live: {
+    requests_today: 128547, tokens_today: 2847000000,
+    requests_yday: 125527,  tokens_yday: 2912000000,
+    requests_change_rate: '+2.41%', tokens_change_rate: '-2.23%'
+  },
+  static: { users: 847, apps: 68, penetration: 73.2 }
 };
 
-function animateCounter(el, from, to, duration, formatter) {
+function formatTokens(raw) {
+  const m = raw / 1e6;
+  if (m >= 1000) return Math.round(m).toLocaleString() + 'M';
+  if (m >= 10)   return m.toFixed(1) + 'M';
+  return m.toFixed(2) + 'M';
+}
+
+function formatShortNum(v) {
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return Math.round(v).toLocaleString();
+}
+
+// DataHub returns "106.09%" or "-42.01%" — both represent delta vs yesterday.
+function parseChangeRate(str) {
+  if (str == null) return null;
+  const cleaned = String(str).trim().replace(/[+%\s]/g, '');
+  const delta = parseFloat(cleaned);
+  if (isNaN(delta)) return null;
+  const isUp = delta >= 0;
+  return {
+    isUp,
+    displayText: (isUp ? '↑ +' : '↓ -') + Math.abs(delta).toFixed(2) + '% vs 昨日',
+    compactText: (isUp ? '↑ +' : '↓ -') + Math.abs(delta).toFixed(2) + '%'
+  };
+}
+
+function animateCounter(el, from, to, duration, formatter, onComplete) {
   const start = performance.now();
   function step(now) {
     const t = Math.min((now - start) / duration, 1);
@@ -785,48 +903,126 @@ function animateCounter(el, from, to, duration, formatter) {
     const val = Math.round(from + (to - from) * ease);
     el.textContent = formatter(val);
     if (t < 1) requestAnimationFrame(step);
+    else if (onComplete) onComplete();
   }
   requestAnimationFrame(step);
 }
 
-window.addEventListener('load', () => {
-  animateCounter(document.getElementById('kpi-calls'), 0, 128547, 2000, v => v.toLocaleString());
-  animateCounter(document.getElementById('kpi-users'), 0, 847, 1800, v => v.toLocaleString());
-  animateCounter(document.getElementById('kpi-apps'), 0, 68, 1500, v => v.toString());
-  setTimeout(() => {
-    animateCounter(document.getElementById('kpi-tokens'), 0, 2847, 2200, v => v.toLocaleString() + 'M');
-  }, 200);
+function applyTrend(el, parsed) {
+  if (!parsed) { el.textContent = '—'; el.className = 'kpi-trend'; return; }
+  el.textContent = parsed.displayText;
+  el.className = 'kpi-trend ' + (parsed.isUp ? 'trend-up' : 'trend-down');
+}
 
-  // Percentage counter
-  let pct = 0;
-  const pctEl = document.getElementById('kpi-pct');
-  const pctTarget = 73.2;
-  const pctInterval = setInterval(() => {
-    pct = Math.min(pct + 0.8, pctTarget);
-    pctEl.textContent = pct.toFixed(1) + '%';
-    if (pct >= pctTarget) clearInterval(pctInterval);
-  }, 30);
+function renderCompareCard(live) {
+  const pairs = [
+    { key: 'calls',  today: live.requests_today || 0, yday: live.requests_yday || 0,
+      rate: live.requests_change_rate, fmt: v => v.toLocaleString() },
+    { key: 'tokens', today: live.tokens_today   || 0, yday: live.tokens_yday   || 0,
+      rate: live.tokens_change_rate,   fmt: formatShortNum }
+  ];
+  pairs.forEach(p => {
+    const max = Math.max(p.today, p.yday, 1);
+    document.getElementById(`cmp-${p.key}-today-val`).textContent = p.fmt(p.today);
+    document.getElementById(`cmp-${p.key}-yday-val`).textContent  = p.fmt(p.yday);
+    document.getElementById(`cmp-${p.key}-today-bar`).style.width = (p.today / max * 100) + '%';
+    document.getElementById(`cmp-${p.key}-yday-bar`).style.width  = (p.yday  / max * 100) + '%';
+    const parsed = parseChangeRate(p.rate);
+    const rateEl = document.getElementById(`cmp-${p.key}-rate`);
+    if (parsed) {
+      rateEl.textContent = parsed.compactText;
+      rateEl.className = 'change-rate ' + (parsed.isUp ? 'up' : 'down');
+    }
+  });
+}
 
-  // Init bars after delay
-  setTimeout(initDeptBars, 500);
+async function fetchLiveData() {
+  try {
+    const r = await fetch('kpis.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } catch (e) {
+    console.warn('[fetchLiveData]', e);
+    return null;
+  }
+}
+
+function applyLiveData(data, { animate }) {
+  const live = data.live || {};
+  const stat = data.static || {};
+  const tCalls  = live.requests_today || 0;
+  const tTokens = live.tokens_today   || 0;
+  const tUsers  = stat.users || 0;
+  const tApps   = stat.apps || 0;
+  const tPct    = stat.penetration || 0;
+
+  const callsEl  = document.getElementById('kpi-calls');
+  const tokensEl = document.getElementById('kpi-tokens');
+  const usersEl  = document.getElementById('kpi-users');
+  const appsEl   = document.getElementById('kpi-apps');
+  const pctEl    = document.getElementById('kpi-pct');
+
+  if (animate) {
+    // Set state in onComplete so slow-tick intervals stay idle during intro animation.
+    animateCounter(callsEl,  0, tCalls,  2000, v => v.toLocaleString(), () => { kpiState.calls = tCalls; });
+    animateCounter(tokensEl, 0, tTokens, 2200, formatTokens,             () => { kpiState.tokens = tTokens; });
+    animateCounter(usersEl,  0, tUsers,  1800, v => v.toLocaleString(), () => { kpiState.users = tUsers; });
+    animateCounter(appsEl,   0, tApps,   1500, v => v.toString(),        () => { kpiState.apps = tApps; });
+    let p = 0;
+    const ticker = setInterval(() => {
+      p = Math.min(p + 0.8, tPct);
+      pctEl.textContent = p.toFixed(1) + '%';
+      if (p >= tPct) { clearInterval(ticker); kpiState.pct = tPct; }
+    }, 30);
+  } else {
+    kpiState.calls  = tCalls;
+    kpiState.tokens = tTokens;
+    kpiState.users  = tUsers;
+    kpiState.apps   = tApps;
+    kpiState.pct    = tPct;
+    callsEl.textContent  = tCalls.toLocaleString();
+    tokensEl.textContent = formatTokens(tTokens);
+    usersEl.textContent  = tUsers.toLocaleString();
+    appsEl.textContent   = tApps.toString();
+    pctEl.textContent    = tPct.toFixed(1) + '%';
+  }
+
+  applyTrend(document.getElementById('kpi-calls-trend'),  parseChangeRate(live.requests_change_rate));
+  applyTrend(document.getElementById('kpi-tokens-trend'), parseChangeRate(live.tokens_change_rate));
+  renderCompareCard(live);
+}
+
+window.addEventListener('load', async () => {
+  const data = (await fetchLiveData()) || FALLBACK_DATA;
+  applyLiveData(data, { animate: true });
+
+  // Poll every 60s
+  setInterval(async () => {
+    const d = await fetchLiveData();
+    if (d) applyLiveData(d, { animate: false });
+  }, 60000);
 });
 
-// Slowly tick up counters
+// Slow-tick for "live" feel between polls. Guards against running before real data arrives.
 setInterval(() => {
+  if (kpiState.calls <= 0) return;
   kpiState.calls += Math.floor(Math.random() * 8) + 1;
   document.getElementById('kpi-calls').textContent = kpiState.calls.toLocaleString();
 }, 1500);
 
 setInterval(() => {
-  const delta = Math.random() < 0.5 ? 1 : -1;
-  const newVal = Math.max(840, Math.min(860, kpiState.users + (Math.random() < 0.3 ? delta * 2 : delta)));
-  kpiState.users = newVal;
+  if (kpiState.users <= 0) return;
+  const jitter = Math.random() < 0.5 ? 1 : -1;
+  kpiState.users = Math.max(10, kpiState.users + (Math.random() < 0.3 ? jitter * 2 : jitter));
   document.getElementById('kpi-users').textContent = kpiState.users.toLocaleString();
 }, 3000);
 
 setInterval(() => {
-  kpiState.tokens += Math.floor(Math.random() * 3) + 1;
-  document.getElementById('kpi-tokens').textContent = kpiState.tokens.toLocaleString() + 'M';
+  if (kpiState.tokens <= 0) return;
+  // Proportional tick — visible in M-formatted display across wide value ranges.
+  const tick = Math.max(1, Math.floor(kpiState.tokens * (0.00002 + Math.random() * 0.00003)));
+  kpiState.tokens += tick;
+  document.getElementById('kpi-tokens').textContent = formatTokens(kpiState.tokens);
 }, 2500);
 
 // ═══════════════════════════════════════════════════════
@@ -885,38 +1081,6 @@ function addFeedItem() {
   setTimeout(addFeedItem, nextIn);
 }
 setTimeout(addFeedItem, 800);
-
-// ═══════════════════════════════════════════════════════
-//  DEPT BARS
-// ═══════════════════════════════════════════════════════
-const deptBarData = [
-  {name:'Asset', pct:94},
-  {name:'IDC', pct:87},
-  {name:'财务', pct:82},
-  {name:'新能源', pct:76},
-  {name:'Legal/IA/PR', pct:71},
-  {name:'HR', pct:65},
-  {name:'基金/其他', pct:58},
-];
-
-function initDeptBars() {
-  const container = document.getElementById('dept-bars');
-  deptBarData.forEach(d => {
-    const row = document.createElement('div');
-    row.className = 'dept-bar-row';
-    row.innerHTML = `
-      <div class="dept-bar-label"><span>${d.name}</span><span>${d.pct}%</span></div>
-      <div class="dept-bar-bg"><div class="dept-bar-fill" data-pct="${d.pct}"></div></div>
-    `;
-    container.appendChild(row);
-  });
-  // Trigger animation
-  setTimeout(() => {
-    document.querySelectorAll('.dept-bar-fill').forEach(el => {
-      el.style.width = el.dataset.pct + '%';
-    });
-  }, 100);
-}
 
 // ═══════════════════════════════════════════════════════
 //  PARTICLE CANVAS  (throttled + visibility-aware)
