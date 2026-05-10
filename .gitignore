@@ -8,3 +8,15 @@ node_modules/
 
 # DataHub interface spec (internal Feishu export, not for git)
 *.docx
+
+# KPI 源数据表（内部 Excel，不入 git）
+*.xlsx
+~$*.xlsx
+
+# SQLite 本地数据库（含业务数据，不入 git）
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# launchd 日志
+logs/

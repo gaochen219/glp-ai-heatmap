@@ -8,1163 +8,882 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --green-primary: #1B6B3A;
-    --green-mid: #2D8A50;
-    --green-light: #4CAF75;
-    --green-neon: #5DFF9F;
-    --bg: #03080A;
-    --text: #C8EDD5;
-    --text-dim: #7ab890;
-    --sidebar-w: 260px;
-    --header-h: 64px;
-    --kpi-h: 80px;
-    --footer-h: 36px;
+    /* 三层绿色 */
+    --neon:   #5DFF9F;   /* 关键数据/高亮 */
+    --leaf:   #AEE8C4;   /* KPI 标签/图表标题 */
+    --moss:   #6B8F7D;   /* 说明/单位/边框 */
+    --line:   #1B6B3A;   /* 卡片边框 */
+
+    /* 双层背景 */
+    --bg-page:  #03080A;
+    --bg-card:  #0B1412;
+
+    /* 涨跌 */
+    --up:   #5DFF9F;
+    --down: #FF6B6B;
+
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
 
   html, body {
-    width: 100%; height: 100%;
-    overflow: hidden;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    font-size: 12px;
+    width: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: var(--bg-page);
+    color: var(--leaf);
+    font-family: var(--sans);
+    font-size: 13px;
+    line-height: 1.3;
   }
 
-  /* ── Canvas background ── */
-  #particle-canvas {
-    position: fixed; inset: 0; z-index: 0;
-    pointer-events: none;
-  }
-
-  /* ── Scanline & vignette overlays ── */
-  .overlay-scanline {
-    position: fixed; inset: 0; z-index: 1; pointer-events: none;
-    background: repeating-linear-gradient(
-      to bottom,
-      transparent 0px,
-      transparent 3px,
-      rgba(0,0,0,0.08) 3px,
-      rgba(0,0,0,0.08) 4px
-    );
-  }
-  .overlay-vignette {
-    position: fixed; inset: 0; z-index: 2; pointer-events: none;
-    background: radial-gradient(ellipse at center,
-      transparent 55%,
-      rgba(0,0,0,0.6) 100%
-    );
-  }
-
-  /* ── App shell ── */
   #app {
-    position: relative; z-index: 10;
-    width: 100%; height: 100%;
+    width: 100%;
+    min-height: 100vh;
     display: flex; flex-direction: column;
+    padding: 14px 18px;
+    gap: 12px;
   }
 
-  /* ── HEADER ── */
+  /* 主屏（header + KPI + 热力图）铺满首屏，分析区在下方 */
+  #primary {
+    display: flex; flex-direction: column;
+    gap: 12px;
+    min-height: calc(100vh - 28px);  /* 减去 padding */
+  }
+
+  /* ─── HEADER ─── */
   #header {
-    height: var(--header-h);
-    background: linear-gradient(90deg, rgba(27,107,58,0.25) 0%, rgba(3,8,10,0.8) 100%);
-    border-bottom: 1px solid rgba(45,138,80,0.5);
-    display: flex; align-items: center; padding: 0 20px;
-    gap: 16px; flex-shrink: 0;
-    backdrop-filter: blur(4px);
+    height: 56px;
+    display: flex; align-items: center; gap: 16px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 12px;
+    flex-shrink: 0;
   }
-  .logo-mark {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, var(--green-primary), var(--green-mid));
-    border: 1px solid var(--green-neon);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 900; font-size: 14px; color: var(--green-neon);
-    letter-spacing: -1px;
-    box-shadow: 0 0 10px rgba(93,255,159,0.3);
-    clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  .logo {
+    height: 36px;
+    width: auto;
+    display: block;
+    filter: drop-shadow(0 0 8px rgba(93,255,159,0.25));
   }
-  .header-titles { flex: 1; }
-  .header-main {
-    font-size: 18px; font-weight: 700;
-    color: var(--green-neon);
-    text-shadow: 0 0 12px rgba(93,255,159,0.6);
+  .title-block { flex: 1; }
+  .title-main {
+    font-size: 20px; font-weight: 700;
+    color: var(--leaf);
+    letter-spacing: 1px;
+  }
+  .title-sub {
+    font-size: 11px; color: var(--moss);
+    letter-spacing: 2px; margin-top: 2px;
+  }
+
+  /* ─── KPI 单行 5 等分 ─── */
+  #kpi-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 12px 14px;
+  }
+  .kpi-cell {
+    display: flex; flex-direction: column;
+    gap: 4px;
+    min-height: 92px;
+  }
+  .kpi-cell .kpi-label {
+    font-size: 10px; color: var(--moss);
     letter-spacing: 2px;
+    text-transform: uppercase;
   }
-  .header-sub {
-    font-size: 10px; color: var(--text-dim);
-    letter-spacing: 3px; text-transform: uppercase;
+  .kpi-cell .kpi-value {
+    font-family: var(--mono);
+    font-size: 30px; font-weight: 700;
+    color: var(--neon);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 10px rgba(93,255,159,0.2);
+  }
+  .kpi-cell.secondary .kpi-value {
+    color: var(--leaf);
+    text-shadow: none;
+    font-size: 26px;
+  }
+  .kpi-cell .kpi-change {
+    font-family: var(--mono);
+    font-size: 11px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
     margin-top: 2px;
   }
-  #clock {
-    font-size: 22px; font-weight: 300; color: var(--green-neon);
-    font-variant-numeric: tabular-nums;
-    text-shadow: 0 0 8px rgba(93,255,159,0.5);
-    letter-spacing: 2px;
+  .kpi-change.up   { color: var(--up); }
+  .kpi-change.down { color: var(--down); }
+  .kpi-change-note { color: var(--moss); font-weight: 400; margin-left: 4px; }
+  .kpi-cell .kpi-hint {
+    font-size: 10px; color: var(--moss);
+    margin-top: 2px;
   }
 
-  /* ── KPI BAR ── */
-  #kpi-bar {
-    height: var(--kpi-h);
-    border-bottom: 1px solid rgba(45,138,80,0.4);
-    display: flex; flex-shrink: 0;
-    background: rgba(3,8,10,0.6);
-  }
-  .kpi-item {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    border-right: 1px solid rgba(45,138,80,0.25);
-    padding: 0 12px; gap: 4px;
-    position: relative;
-  }
-  .kpi-item:last-child { border-right: none; }
-  .kpi-label {
-    font-size: 10px; color: var(--text-dim);
-    letter-spacing: 1px; text-transform: uppercase;
-  }
-  .kpi-value {
-    font-size: 24px; font-weight: 700;
-    color: var(--green-neon);
-    font-variant-numeric: tabular-nums;
-    text-shadow: 0 0 10px rgba(93,255,159,0.5);
-    line-height: 1;
-  }
-  .kpi-trend {
-    font-size: 9px; color: var(--green-light);
-  }
-  .kpi-trend.trend-up { color: var(--green-neon); }
-  .kpi-trend.trend-down { color: #ff6b6b; }
-  .kpi-item::after {
-    content: '';
-    position: absolute; bottom: 0; left: 20%; right: 20%; height: 2px;
-    background: linear-gradient(90deg, transparent, var(--green-neon), transparent);
-    opacity: 0.4;
-  }
-
-  /* ── MAIN BODY ── */
-  #main-body {
-    flex: 1; display: flex; overflow: hidden;
+  /* ─── 热力图 ─── */
+  #heatmap-wrap {
+    flex: 1;
     min-height: 0;
+    display: flex; flex-direction: column;
   }
-
-  /* ── GRID AREA ── */
-  #grid-area {
-    flex: 1; overflow: auto; min-width: 0;
-    scrollbar-width: thin;
-    scrollbar-color: var(--green-primary) transparent;
+  .section-title {
+    font-size: 11px; color: var(--moss);
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px;
   }
-  #grid-area::-webkit-scrollbar { width: 6px; height: 6px; }
-  #grid-area::-webkit-scrollbar-track { background: transparent; }
-  #grid-area::-webkit-scrollbar-thumb { background: var(--green-primary); border-radius: 3px; }
-
-  #grid-table {
-    min-width: 900px;
-    border-collapse: separate;
-    border-spacing: 0;
-    width: 100%;
+  .section-title::before {
+    content: ''; display: inline-block;
+    width: 3px; height: 11px; background: var(--neon);
   }
-
-  /* Sticky column header row */
-  .col-header-row th {
-    position: sticky; top: 0; z-index: 20;
-    background: rgba(3,8,10,0.95);
-    border-bottom: 2px solid var(--green-primary);
-    padding: 8px 4px;
-    text-align: center;
-    color: var(--green-light);
-    font-size: 11px; font-weight: 600;
-    letter-spacing: 1px;
-    white-space: nowrap;
-    backdrop-filter: blur(8px);
+  .section-title .count {
+    font-family: var(--mono); color: var(--leaf);
+    font-weight: 700; letter-spacing: 1px;
   }
-  .col-header-row th:first-child {
-    text-align: left; padding-left: 10px;
-    min-width: 120px;
-    border-right: 1px solid var(--green-primary);
-  }
-  .col-header-row th.dept-col {
-    min-width: 120px;
-  }
-  .dept-en { font-size: 9px; color: var(--text-dim); display: block; margin-top: 2px; }
-
-  /* Section header rows */
-  .section-row td {
-    background: rgba(27,107,58,0.2);
-    border-top: 1px solid rgba(45,138,80,0.5);
-    border-bottom: 1px solid rgba(45,138,80,0.3);
-    padding: 6px 10px;
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 2px; text-transform: uppercase;
-    color: var(--green-neon);
-    text-shadow: 0 0 6px rgba(93,255,159,0.4);
-  }
-
-  /* Sub-section label rows */
-  .subsection-row td:first-child {
-    background: rgba(27,107,58,0.12);
-    border-right: 1px solid var(--green-primary);
-    color: var(--text-dim);
-    font-size: 10px;
-    padding: 4px 8px;
-    vertical-align: top;
-    line-height: 1.4;
-  }
-  .subsection-row td {
-    vertical-align: top;
-    padding: 3px 4px;
-    border-bottom: 1px solid rgba(45,138,80,0.12);
-  }
-
-  /* ── TILES ── */
-  .tile-stack {
-    display: flex; flex-direction: column; gap: 2px;
-    min-height: 20px;
-  }
-  .tile {
-    border-radius: 3px;
-    padding: 3px 5px;
-    font-size: 10px;
-    line-height: 1.3;
-    cursor: default;
-    transition: all 0.3s ease;
-    position: relative;
-    white-space: normal;
-    word-break: break-all;
-  }
-  .tile.complexity-high {
-    background: rgba(27,107,58,0.35);
-    border: 1px solid rgba(45,138,80,0.5);
-    color: var(--text);
-  }
-  .tile.complexity-mid {
-    background: rgba(27,107,58,0.2);
-    border: 1px solid rgba(45,138,80,0.35);
-    color: var(--text-dim);
-  }
-  .tile.complexity-planned {
-    background: transparent;
-    border: 1px dashed rgba(45,138,80,0.3);
-    color: rgba(200,237,213,0.4);
-    font-style: italic;
-  }
-  .tile.active {
-    background: rgba(93,255,159,0.15) !important;
-    border-color: var(--green-neon) !important;
-    box-shadow: 0 0 8px rgba(93,255,159,0.5), 0 0 20px rgba(93,255,159,0.25);
-    text-shadow: 0 0 8px rgba(93,255,159,0.8);
-    color: var(--green-neon) !important;
-    z-index: 5;
-  }
-  .tile.hot {
-    animation: hotPulse 2.5s ease-in-out infinite;
-  }
-  @keyframes hotPulse {
-    0%, 100% {
-      box-shadow: 0 0 4px rgba(93,255,159,0.3);
-      border-color: rgba(93,255,159,0.5);
-    }
-    50% {
-      box-shadow: 0 0 12px rgba(93,255,159,0.7), 0 0 24px rgba(93,255,159,0.3);
-      border-color: var(--green-neon);
-    }
-  }
-
-  /* Tooltip */
-  .tile:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 6px); left: 50%;
-    transform: translateX(-50%);
-    background: rgba(3,20,10,0.95);
-    border: 1px solid var(--green-mid);
-    padding: 6px 10px;
+  #heatmap {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
     border-radius: 4px;
+    overflow: visible;
+  }
+  #heatmap table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 11px;
-    color: var(--text);
-    white-space: pre-line;
-    width: 160px;
-    z-index: 100;
-    pointer-events: none;
-    line-height: 1.5;
-    text-shadow: none;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.8);
   }
-  .tile:hover {
-    transform: translateY(-1px);
-    z-index: 10;
+  #heatmap th, #heatmap td {
+    border: 1px solid rgba(27,107,58,0.35);
+    padding: 6px 8px;
+    vertical-align: middle;
   }
-
-  /* ── SIDEBAR ── */
-  #sidebar {
-    width: var(--sidebar-w);
-    flex-shrink: 0;
-    border-left: 1px solid rgba(45,138,80,0.4);
-    display: flex; flex-direction: column;
-    overflow: hidden;
-    background: rgba(3,8,10,0.7);
-  }
-  .sidebar-section {
-    border-bottom: 1px solid rgba(45,138,80,0.25);
-    padding: 10px;
-    flex-shrink: 0;
-  }
-  .sidebar-title {
-    font-size: 10px; font-weight: 700;
-    color: var(--green-light);
-    letter-spacing: 2px; text-transform: uppercase;
-    margin-bottom: 8px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .sidebar-title::before {
-    content: '▶';
-    font-size: 8px; color: var(--green-neon);
-  }
-
-  /* Activity feed */
-  #activity-feed-wrap {
-    flex: 1; overflow: hidden; padding: 10px;
-    display: flex; flex-direction: column;
-    min-height: 0;
-  }
-  #activity-feed {
-    flex: 1; overflow: hidden;
-    display: flex; flex-direction: column; gap: 4px;
-  }
-  .feed-item {
-    font-size: 10px; color: var(--text-dim);
-    padding: 5px 7px;
-    background: rgba(27,107,58,0.1);
-    border-left: 2px solid var(--green-primary);
-    border-radius: 0 3px 3px 0;
-    line-height: 1.4;
-    animation: feedIn 0.4s ease-out;
-    transition: opacity 0.5s;
-  }
-  .feed-item.fade-out { opacity: 0; }
-  .feed-ts { color: var(--green-neon); font-variant-numeric: tabular-nums; }
-  .feed-dept { color: var(--green-light); font-weight: 600; }
-  .feed-app { color: var(--text); }
-  @keyframes feedIn {
-    from { opacity: 0; transform: translateX(-8px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
-
-  /* Dept bars */
-  .dept-bar-row { margin-bottom: 7px; }
-  .dept-bar-label {
-    display: flex; justify-content: space-between;
-    font-size: 10px; color: var(--text-dim); margin-bottom: 2px;
-  }
-  .dept-bar-label span:last-child { color: var(--green-light); }
-  .dept-bar-bg {
-    height: 5px; background: rgba(27,107,58,0.2);
-    border-radius: 3px; overflow: hidden;
-  }
-  .dept-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--green-primary), var(--green-neon));
-    border-radius: 3px;
-    width: 0%;
-    transition: width 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    box-shadow: 0 0 4px rgba(93,255,159,0.4);
-  }
-
-  /* Legend */
-  .legend-item {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 10px; color: var(--text-dim);
-    margin-bottom: 5px;
-  }
-  .legend-swatch {
-    width: 20px; height: 10px; border-radius: 2px; flex-shrink: 0;
-  }
-  .legend-high {
-    background: rgba(27,107,58,0.35);
-    border: 1px solid rgba(45,138,80,0.5);
-  }
-  .legend-mid {
-    background: rgba(27,107,58,0.2);
-    border: 1px solid rgba(45,138,80,0.35);
-  }
-  .legend-planned {
-    background: transparent;
-    border: 1px dashed rgba(45,138,80,0.3);
-  }
-
-  /* ── Yesterday comparison card ── */
-  .compare-row { margin-bottom: 10px; }
-  .compare-row:last-child { margin-bottom: 0; }
-  .compare-head {
-    display: flex; justify-content: space-between; align-items: baseline;
-    font-size: 10px; color: var(--text-dim);
-    margin-bottom: 4px;
+  #heatmap thead th {
+    background: rgba(27,107,58,0.15);
+    color: var(--leaf);
+    font-weight: 700;
     letter-spacing: 1px;
+    position: sticky; top: 0; z-index: 2;
   }
-  .compare-head .metric-name { color: var(--green-light); font-weight: 600; }
-  .compare-head .change-rate {
-    font-variant-numeric: tabular-nums;
+  #heatmap thead th .dept-en {
+    display: block; font-size: 9px; color: var(--moss);
+    font-weight: 400; letter-spacing: 0.5px; margin-top: 2px;
+  }
+  .section-row td {
+    background: rgba(27,107,58,0.25);
+    color: var(--neon);
     font-weight: 700;
     font-size: 11px;
+    letter-spacing: 2px;
+    padding: 4px 10px !important;
   }
-  .compare-head .change-rate.up { color: var(--green-neon); text-shadow: 0 0 6px rgba(93,255,159,0.4); }
-  .compare-head .change-rate.down { color: #ff6b6b; text-shadow: 0 0 6px rgba(255,107,107,0.4); }
-  .compare-bar-line {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 9px; color: var(--text-dim);
-    margin-bottom: 3px;
+  .sub-label {
+    color: var(--leaf);
+    font-size: 11px;
+    font-weight: 600;
+    width: 90px;
+    background: rgba(27,107,58,0.08);
   }
-  .compare-bar-line:last-child { margin-bottom: 0; }
-  .compare-bar-line .day-label { width: 28px; flex-shrink: 0; }
-  .compare-bar-line .day-value {
-    width: 60px; flex-shrink: 0; text-align: right;
-    color: var(--text); font-variant-numeric: tabular-nums;
+  .tile-cell {
+    min-width: 140px;
+    padding: 3px !important;
   }
-  .compare-bar-bg {
-    flex: 1; height: 5px;
-    background: rgba(27,107,58,0.15);
-    border-radius: 3px; overflow: hidden;
+  .tile-stack {
+    display: flex; flex-direction: column;
+    gap: 3px;
   }
-  .compare-bar-fill {
-    height: 100%;
-    width: 0%;
-    border-radius: 3px;
-    transition: width 1.2s cubic-bezier(0.25,0.46,0.45,0.94);
+  .tile {
+    padding: 4px 6px;
+    font-size: 10px;
+    border-radius: 2px;
+    line-height: 1.2;
+    transition: background 0.3s, border-color 0.3s;
+    cursor: default;
   }
-  .compare-bar-fill.today {
-    background: linear-gradient(90deg, var(--green-primary), var(--green-neon));
-    box-shadow: 0 0 4px rgba(93,255,159,0.4);
+  .tile.high {
+    background: rgba(27,107,58,0.55);
+    border: 1px solid var(--line);
+    color: #E6FFF0;
   }
-  .compare-bar-fill.yday {
-    background: rgba(122, 184, 144, 0.35);
+  .tile.mid {
+    background: rgba(27,107,58,0.22);
+    border: 1px solid rgba(27,107,58,0.6);
+    color: var(--leaf);
+  }
+  .tile.planned {
+    background: transparent;
+    border: 1px dashed rgba(107,143,125,0.5);
+    color: var(--moss);
+  }
+  .tile.hot {
+    animation: hot-pulse 2.2s ease-in-out infinite;
+  }
+  @keyframes hot-pulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(93,255,159,0); }
+    50%      { box-shadow: 0 0 8px rgba(93,255,159,0.5); }
   }
 
-  /* ── FOOTER ── */
-  #footer {
-    height: var(--footer-h);
-    border-top: 1px solid rgba(45,138,80,0.4);
-    display: flex; align-items: center;
-    padding: 0 20px; gap: 20px;
-    background: rgba(3,8,10,0.8);
+  /* ─── 分析区（热力图下方，尺寸小一点） ─── */
+  #analysis {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    height: 180px;
     flex-shrink: 0;
+  }
+  .panel-title {
+    font-size: 11px; color: var(--moss);
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title .hint {
+    font-size: 10px; color: var(--moss); letter-spacing: 0;
+  }
+  .panel { display: flex; flex-direction: column; }
+  .panel-body {
+    flex: 1; min-height: 0; position: relative;
+  }
+
+  /* 折线 */
+  svg.trend-svg { width: 100%; height: 100%; }
+  .trend-line {
+    fill: none; stroke: var(--neon); stroke-width: 1.8;
+    filter: drop-shadow(0 0 3px rgba(93,255,159,0.4));
+  }
+  .trend-area  { fill: url(#trend-grad); opacity: 0.35; }
+  .trend-dot   { fill: var(--neon); }
+  .trend-axis  { fill: var(--moss); font-family: var(--mono); font-size: 10px; }
+  .trend-grid  { stroke: rgba(107,143,125,0.15); stroke-width: 1; }
+
+  /* 调用平台数字面板 */
+  .platforms {
+    display: flex; flex-direction: column;
+    height: 100%;
+    gap: 6px;
+  }
+  .plat-row {
+    display: grid;
+    grid-template-columns: 100px repeat(3, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    background: rgba(27,107,58,0.08);
+    border: 1px solid rgba(27,107,58,0.35);
+    border-radius: 3px;
+    flex: 1;
+  }
+  .plat-row.header {
+    background: transparent;
+    border: none;
+    padding: 0 10px 4px;
+    flex: 0 0 auto;
+  }
+  .plat-row.header > div {
     font-size: 10px;
+    color: var(--moss);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .plat-name {
+    font-size: 13px; font-weight: 700;
+    color: var(--leaf);
+    letter-spacing: 1px;
+  }
+  .plat-metric {
+    display: flex; flex-direction: column;
+    gap: 2px;
+  }
+  .plat-metric .val {
+    font-family: var(--mono);
+    font-size: 18px; font-weight: 700;
+    color: var(--neon);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .plat-metric .lbl {
+    font-size: 9px;
+    color: var(--moss);
+    letter-spacing: 1px;
+  }
+  .plat-metric.cost .val { color: var(--leaf); }
+  .plat-metric .muted { color: var(--moss); font-weight: 400; }
+
+  /* ─── FOOTER ─── */
+  #footer {
+    height: 28px;
+    padding-top: 8px;
+    display: flex; align-items: center; gap: 14px;
+    font-size: 10px; color: var(--moss);
+    flex-shrink: 0;
+    letter-spacing: 1px;
   }
   .live-dot {
     width: 7px; height: 7px; border-radius: 50%;
-    background: var(--green-neon);
-    box-shadow: 0 0 6px var(--green-neon);
-    animation: blink 1.2s ease-in-out infinite;
-    flex-shrink: 0;
+    background: var(--neon);
+    box-shadow: 0 0 6px rgba(93,255,159,0.6);
+    animation: live-blink 2s ease-in-out infinite;
   }
-  @keyframes blink {
+  @keyframes live-blink {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.2; }
+    50%      { opacity: 0.25; }
   }
-  .footer-live { color: var(--green-neon); font-weight: 700; letter-spacing: 2px; }
-  .footer-sep { color: rgba(45,138,80,0.5); }
-  .footer-status { color: var(--green-light); letter-spacing: 1px; }
-  .footer-update { color: var(--text-dim); }
-  .footer-depts { margin-left: auto; color: rgba(200,237,213,0.35); font-size: 9px; }
+  .live-label { color: var(--neon); font-weight: 700; letter-spacing: 2px; }
+  .sep { color: rgba(27,107,58,0.5); }
+  .update-time { color: var(--leaf); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .footer-spacer { flex: 1; }
+  .footer-source { color: var(--moss); }
 </style>
 </head>
 <body>
 
-<canvas id="particle-canvas"></canvas>
-<div class="overlay-scanline"></div>
-<div class="overlay-vignette"></div>
-
 <div id="app">
 
-  <!-- HEADER -->
-  <div id="header">
-    <div class="logo-mark">GLP</div>
-    <div class="header-titles">
-      <div class="header-main">GLP AI 应用指挥中心</div>
-      <div class="header-sub">GLP Digital Technology &nbsp;·&nbsp; We Lead the Way</div>
-    </div>
-    <div id="clock">--:--:--</div>
-  </div>
+  <!-- 主屏：header + KPI + 热力图，铺满首屏 -->
+  <div id="primary">
 
-  <!-- KPI BAR -->
-  <div id="kpi-bar">
-    <div class="kpi-item">
-      <div class="kpi-label">今日调用量</div>
-      <div class="kpi-value" id="kpi-calls">0</div>
-      <div class="kpi-trend" id="kpi-calls-trend">—</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-label">活跃用户</div>
-      <div class="kpi-value" id="kpi-users">0</div>
-      <div class="kpi-trend">跨 7 部门</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-label">AI渗透率</div>
-      <div class="kpi-value" id="kpi-pct">0%</div>
-      <div class="kpi-trend">目标 80%</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-label">已上线应用</div>
-      <div class="kpi-value" id="kpi-apps">0</div>
-      <div class="kpi-trend">+3 本月新增</div>
-    </div>
-    <div class="kpi-item">
-      <div class="kpi-label">今日 Tokens</div>
-      <div class="kpi-value" id="kpi-tokens">0M</div>
-      <div class="kpi-trend" id="kpi-tokens-trend">—</div>
-    </div>
-  </div>
+    <!-- HEADER -->
+    <header id="header">
+      <img class="logo" src="logo.png" alt="GLP">
+      <div class="title-block">
+        <div class="title-main">GLP AI 应用指挥中心</div>
+        <div class="title-sub">GLP Digital Technology · We Lead the Way</div>
+      </div>
+    </header>
 
-  <!-- MAIN BODY -->
-  <div id="main-body">
+    <!-- KPI 单行 5 等分 -->
+    <div id="kpi-row">
+      <div class="card kpi-cell">
+        <div class="kpi-label">今日调用量</div>
+        <div class="kpi-value" id="l1-calls">0</div>
+        <div class="kpi-change" id="l1-calls-change">—</div>
+      </div>
+      <div class="card kpi-cell">
+        <div class="kpi-label">今日 TOKENS</div>
+        <div class="kpi-value" id="l1-tokens">0</div>
+        <div class="kpi-change" id="l1-tokens-change">—</div>
+      </div>
+      <div class="card kpi-cell secondary">
+        <div class="kpi-label">30 天活跃用户</div>
+        <div class="kpi-value" id="l2-users">0</div>
+        <div class="kpi-hint" id="l2-users-hint">仅含 AI-Buddy</div>
+      </div>
+      <div class="card kpi-cell secondary">
+        <div class="kpi-label">已上线应用</div>
+        <div class="kpi-value" id="l2-apps">0</div>
+        <div class="kpi-hint" id="l2-apps-hint">—</div>
+      </div>
+      <div class="card kpi-cell secondary">
+        <div class="kpi-label">本月成本</div>
+        <div class="kpi-value" id="l2-cost">¥0</div>
+        <div class="kpi-change" id="l2-cost-change">—</div>
+      </div>
+    </div>
 
-    <!-- GRID AREA -->
-    <div id="grid-area">
-      <table id="grid-table">
+    <!-- 热力图（主屏剩余空间全铺） -->
+    <section id="heatmap-wrap">
+      <div class="section-title">
+        <span>AI 应用热力图</span>
+        <span class="count" id="heatmap-count">0 应用 × 7 部门</span>
+      </div>
+      <div id="heatmap">
+        <table>
         <thead>
-          <tr class="col-header-row">
-            <th>应用 / 部门</th>
-            <th class="dept-col">Asset<span class="dept-en">资产管理</span></th>
-            <th class="dept-col">IDC<span class="dept-en">数据中心</span></th>
-            <th class="dept-col">新能源<span class="dept-en">Renewables</span></th>
-            <th class="dept-col">基金/其他<span class="dept-en">Fund</span></th>
-            <th class="dept-col">财务<span class="dept-en">Finance</span></th>
-            <th class="dept-col">HR<span class="dept-en">人力资源</span></th>
-            <th class="dept-col">Legal/IA/PR<span class="dept-en">法务/审计/公关</span></th>
+          <tr>
+            <th style="width:90px">分类</th>
+            <th>Asset<span class="dept-en">资产管理</span></th>
+            <th>IDC<span class="dept-en">数据中心</span></th>
+            <th>新能源<span class="dept-en">Renewables</span></th>
+            <th>基金/其他<span class="dept-en">Fund</span></th>
+            <th>财务<span class="dept-en">Finance</span></th>
+            <th>HR<span class="dept-en">人力资源</span></th>
+            <th>Legal/IA/PR<span class="dept-en">法务/审计/公关</span></th>
           </tr>
         </thead>
-        <tbody id="grid-tbody">
-        </tbody>
+        <tbody id="heatmap-body"></tbody>
       </table>
     </div>
+  </section>
 
-    <!-- SIDEBAR -->
-    <div id="sidebar">
-      <div id="activity-feed-wrap">
-        <div class="sidebar-title">实时活动流</div>
-        <div id="activity-feed"></div>
+  </div>
+  <!-- /primary -->
+
+  <!-- 分析区（主屏下方，下滑查看） -->
+  <section id="analysis">
+    <div class="card panel">
+      <div class="panel-title">
+        <span>近 7 天调用趋势</span>
+        <span class="hint" id="trend-hint">每日 requests</span>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-title">昨日同期对比</div>
-        <div id="compare-card">
-          <div class="compare-row" data-metric="calls">
-            <div class="compare-head">
-              <span class="metric-name">调用量</span>
-              <span class="change-rate" id="cmp-calls-rate">—</span>
-            </div>
-            <div class="compare-bar-line">
-              <span class="day-label">今日</span>
-              <div class="compare-bar-bg"><div class="compare-bar-fill today" id="cmp-calls-today-bar"></div></div>
-              <span class="day-value" id="cmp-calls-today-val">—</span>
-            </div>
-            <div class="compare-bar-line">
-              <span class="day-label">昨日</span>
-              <div class="compare-bar-bg"><div class="compare-bar-fill yday" id="cmp-calls-yday-bar"></div></div>
-              <span class="day-value" id="cmp-calls-yday-val">—</span>
-            </div>
-          </div>
-          <div class="compare-row" data-metric="tokens">
-            <div class="compare-head">
-              <span class="metric-name">Tokens</span>
-              <span class="change-rate" id="cmp-tokens-rate">—</span>
-            </div>
-            <div class="compare-bar-line">
-              <span class="day-label">今日</span>
-              <div class="compare-bar-bg"><div class="compare-bar-fill today" id="cmp-tokens-today-bar"></div></div>
-              <span class="day-value" id="cmp-tokens-today-val">—</span>
-            </div>
-            <div class="compare-bar-line">
-              <span class="day-label">昨日</span>
-              <div class="compare-bar-bg"><div class="compare-bar-fill yday" id="cmp-tokens-yday-bar"></div></div>
-              <span class="day-value" id="cmp-tokens-yday-val">—</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="sidebar-section">
-        <div class="sidebar-title">图例</div>
-        <div class="legend-item"><div class="legend-swatch legend-high"></div>高频应用 (High)</div>
-        <div class="legend-item"><div class="legend-swatch legend-mid"></div>中频应用 (Mid)</div>
-        <div class="legend-item"><div class="legend-swatch legend-planned"></div>规划中 (Pipeline)</div>
+      <div class="panel-body">
+        <svg class="trend-svg" id="trend-svg" viewBox="0 0 600 180" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="trend-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="#5DFF9F" stop-opacity="0.6"/>
+              <stop offset="100%" stop-color="#5DFF9F" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
       </div>
     </div>
 
-  </div>
+    <div class="card panel">
+      <div class="panel-title">
+        <span>调用平台</span>
+        <span class="hint">昨日调用量 · Tokens · 本月成本</span>
+      </div>
+      <div class="panel-body">
+        <div class="platforms" id="platforms-body"></div>
+      </div>
+    </div>
+  </section>
 
   <!-- FOOTER -->
-  <div id="footer">
+  <footer id="footer">
     <div class="live-dot"></div>
-    <span class="footer-live">LIVE</span>
-    <span class="footer-sep">|</span>
-    <span class="footer-status">ALL SYSTEMS OPERATIONAL</span>
-    <span class="footer-sep">|</span>
-    <span class="footer-update">数据更新: 实时</span>
-    <span class="footer-depts">Asset · IDC · 新能源 · 基金/其他 · 财务 · HR · Legal/IA/PR</span>
-  </div>
+    <span class="live-label">LIVE</span>
+    <span class="sep">│</span>
+    <span>数据源: DataHub · OSS 快照</span>
+    <span class="sep">│</span>
+    <span>最后更新: <span class="update-time" id="update-time">—</span></span>
+    <div class="footer-spacer"></div>
+    <span class="footer-source">7 部门 · 80 应用 · 刷新 60s</span>
+  </footer>
 
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════
-//  DATA MODEL
-// ═══════════════════════════════════════════════════════
-// Columns: Asset=0, IDC=1, 新能源=2, 基金/其他=3, 财务=4, HR=5, Legal/IA/PR=6
+// ═════════════════════════════════════════════════════════
+//  热力图应用清单（与 DB dim_applications 对齐）
+//  columns: Asset=0, IDC=1, 新能源=2, 基金/其他=3, 财务=4, HR=5, Legal/IA/PR=6
+// ═════════════════════════════════════════════════════════
 const DEPTS = ['Asset','IDC','新能源','基金/其他','财务','HR','Legal/IA/PR'];
 
-// Each entry: [name, dept_index, complexity: 'high'|'mid'|'planned', subsection, section]
-const GRID_DATA = {
+const GRID = {
   sections: [
-    {
-      id: 'general',
-      label: '整体 General — 集团通用助手 AI Buddy 2.0',
-      subsections: [
-        {
-          label: 'AI Buddy 2.0\n集团通用',
-          tiles: [
-            {name:'AI智能助理', dept:0, c:'high', hot:true},
-            {name:'制度流程助理', dept:0, c:'high'},
-            {name:'资讯热点推送', dept:0, c:'high'},
-            {name:'个人知识库', dept:1, c:'high'},
-            {name:'团队知识库', dept:3, c:'high'},
-            {name:'GLP AI文档翻译', dept:4, c:'high'},
-            {name:'GLP AI文稿校对', dept:5, c:'high'},
-            {name:'GLP AI PPT助手', dept:6, c:'high'},
-          ]
-        }
-      ]
-    },
-    {
-      id: 'application',
-      label: '应用 Application',
-      subsections: [
-        {
-          label: '管理与\n决策辅助',
-          tiles: [
-            {name:'AI智能问数(数据检索/分析/洞察)', dept:0, c:'high'},
-            {name:'决策辅助系统(电价&政策分析)', dept:2, c:'mid'},
-            {name:'隐山-投资Memo辅助分析', dept:3, c:'mid'},
-            {name:'税金分析助手', dept:4, c:'high'},
-            {name:'Legal-法务案例库', dept:6, c:'mid'},
-            {name:'IA-检查点校验', dept:6, c:'mid'},
-          ]
-        },
-        {
-          label: '创新业务\n模式赋能',
-          tiles: [
-            {name:'AI数字化营销', dept:0, c:'mid'},
-            {name:'AI&普笈客户管理', dept:0, c:'mid'},
-            {name:'e园区', dept:0, c:'mid'},
-            {name:'AI找仓', dept:0, c:'mid'},
-            {name:'消防监控识别', dept:2, c:'mid'},
-            {name:'运营月报自动化', dept:2, c:'mid'},
-            {name:'组件清洗分析', dept:2, c:'mid'},
-            {name:'基金-贷款合同识别', dept:3, c:'mid'},
-            {name:'财务汇率自动化', dept:4, c:'high'},
-            {name:'财务回单自动整理校验', dept:4, c:'high'},
-            {name:'文档智能搜索', dept:5, c:'mid'},
-            {name:'IA-内审翻译', dept:6, c:'high'},
-            {name:'PR-舆情翻译', dept:6, c:'high'},
-            {name:'PR-文案自审查', dept:6, c:'mid'},
-            {name:'PR-智能素材库', dept:6, c:'mid'},
-          ]
-        },
-        {
-          label: '流程自动化\n与强化管控',
-          tiles: [
-            {name:'租赁合同识别/滞纳金管理', dept:0, c:'high'},
-            {name:'园区进退场智能提醒', dept:0, c:'mid'},
-            {name:'财务数据自动化', dept:0, c:'high'},
-            {name:'DC base AI智能巡检', dept:1, c:'high'},
-            {name:'新能源业财合同识别', dept:2, c:'mid'},
-            {name:'SAP/PTP智能提单', dept:4, c:'high'},
-            {name:'PTP运维合同识别', dept:4, c:'high'},
-            {name:'档案自动查重', dept:5, c:'mid'},
-            {name:'人事信息识别分类', dept:5, c:'mid'},
-          ]
-        },
-        {
-          label: '行业资讯\n洞察',
-          tiles: [
-            {name:'竞对市场活动周报', dept:0, c:'high'},
-            {name:'竞对分析(二手交易监控等)', dept:0, c:'high'},
-            {name:'客户洞察(KA客户)', dept:0, c:'mid'},
-            {name:'IDC市场周报', dept:1, c:'high'},
-            {name:'每周资讯', dept:2, c:'mid'},
-            {name:'热点观察', dept:2, c:'mid'},
-            {name:'深度联想', dept:2, c:'mid'},
-            {name:'基金-宏观经济季报', dept:3, c:'mid'},
-            {name:'PR-舆情Newsletter', dept:6, c:'high'},
-          ]
-        },
-        {
-          label: '业务系统\n助手',
-          tiles: [
-            {name:'小普AI助手(智能提单/运维问答)', dept:0, c:'high'},
-            {name:'IDC运维事件AI智能分析', dept:1, c:'high'},
-            {name:'集中式光伏运维助手', dept:2, c:'high'},
-            {name:'SAP/PTP系统助手', dept:4, c:'high'},
-            {name:'CPM/HFM系统助手', dept:4, c:'high'},
-            {name:'绩效系统数字人', dept:5, c:'mid'},
-          ]
-        },
-        {
-          label: '业务\n知识库',
-          tiles: [
-            {name:'小普/APM/CMS/BI知识库', dept:0, c:'high'},
-            {name:'IDC知识库', dept:1, c:'high'},
-            {name:'运维知识库(集中式)', dept:2, c:'high'},
-            {name:'运营故障知识库', dept:2, c:'mid'},
-            {name:'SAP/PTP知识库', dept:4, c:'high'},
-            {name:'CPM/HFM知识库', dept:4, c:'high'},
-            {name:'档案图书馆', dept:5, c:'mid'},
-          ]
-        },
-      ]
-    },
-    {
-      id: 'foundation',
-      label: '基础建设 Foundation',
-      subsections: [
-        {
-          label: '安全\nSecurity',
-          tiles: [
-            {name:'AI安全身份认证', dept:0, c:'high'},
-            {name:'漏洞报告自动化', dept:0, c:'high'},
-            {name:'安全事件报告助手', dept:1, c:'mid'},
-            {name:'AI安全护栏', dept:3, c:'high'},
-            {name:'AI权限管理', dept:4, c:'high'},
-            {name:'AI安全Newsletter', dept:6, c:'mid'},
-          ]
-        },
-        {
-          label: '治理\nGovernance',
-          tiles: [
-            {name:'AI大模型服务安全治理合规', dept:0, c:'high'},
-            {name:'第三方风险评估AI辅助', dept:3, c:'mid'},
-            {name:'ITPM Chatbot', dept:5, c:'mid'},
-          ]
-        },
-        {
-          label: '研发\nR&D',
-          tiles: [
-            {name:'AI中台(代码/流程/能力集成)', dept:0, c:'high'},
-            {name:'AI大模型评估/审计', dept:2, c:'high'},
-            {name:'LLM模型选型更新机制', dept:4, c:'mid'},
-            {name:'运维AI自动化', dept:6, c:'mid'},
-          ]
-        },
-        {
-          label: '数据\nData',
-          tiles: [
-            {name:'AI数据基建 Data Foundry', dept:0, c:'high'},
-            {name:'AI Newsletter(热点/行研/GitHub)', dept:2, c:'high'},
-            {name:'多模态数据获取AI自动化', dept:4, c:'mid'},
-          ]
-        },
-      ]
-    },
-    {
-      id: 'pipeline',
-      label: '新项目 Pipeline',
-      subsections: [
-        {
-          label: '规划中\nPlanned',
-          tiles: [
-            {name:'OpenClaw数字员工(待安全解决方案)', dept:0, c:'planned'},
-            {name:'GEO内容质量提升/品牌排序', dept:0, c:'planned'},
-            {name:'AI监盘(电力交易/硬件价格)', dept:2, c:'planned'},
-            {name:'财务预算AI tracking/归因分析', dept:4, c:'planned'},
-            {name:'...', dept:6, c:'planned'},
-          ]
-        }
-      ]
-    }
+    { id:'general', label:'整体 · AI Buddy 2.0', subs: [
+      { label:'集团通用', tiles: [
+        {name:'AI 智能助理', dept:0, c:'high', hot:true},
+        {name:'制度流程助理', dept:0, c:'high'},
+        {name:'资讯热点推送', dept:0, c:'high'},
+        {name:'个人知识库', dept:1, c:'high'},
+        {name:'团队知识库', dept:3, c:'high'},
+        {name:'GLP AI 文档翻译', dept:4, c:'high'},
+        {name:'GLP AI 文稿校对', dept:5, c:'high'},
+        {name:'GLP AI PPT 助手', dept:6, c:'high'},
+      ]},
+    ]},
+    { id:'application', label:'应用 Application', subs: [
+      { label:'管理决策', tiles: [
+        {name:'AI 智能问数', dept:0, c:'high'},
+        {name:'决策辅助系统', dept:2, c:'mid'},
+        {name:'隐山-投资 Memo', dept:3, c:'mid'},
+        {name:'税金分析助手', dept:4, c:'high'},
+        {name:'Legal-案例库', dept:6, c:'mid'},
+        {name:'IA-检查点校验', dept:6, c:'mid'},
+      ]},
+      { label:'创新赋能', tiles: [
+        {name:'AI 数字化营销', dept:0, c:'mid'},
+        {name:'AI&普笈客户管理', dept:0, c:'mid'},
+        {name:'e 园区', dept:0, c:'mid'},
+        {name:'AI 找仓', dept:0, c:'mid'},
+        {name:'消防监控识别', dept:2, c:'mid'},
+        {name:'运营月报自动化', dept:2, c:'mid'},
+        {name:'组件清洗分析', dept:2, c:'mid'},
+        {name:'基金-贷款合同识别', dept:3, c:'mid'},
+        {name:'财务汇率自动化', dept:4, c:'high'},
+        {name:'财务回单自动整理校验', dept:4, c:'high'},
+        {name:'文档智能搜索', dept:5, c:'mid'},
+        {name:'IA-内审翻译', dept:6, c:'high'},
+        {name:'PR-舆情翻译', dept:6, c:'high'},
+        {name:'PR-文案自审查', dept:6, c:'mid'},
+        {name:'PR-智能素材库', dept:6, c:'mid'},
+      ]},
+      { label:'流程自动化', tiles: [
+        {name:'租赁合同/滞纳金', dept:0, c:'high'},
+        {name:'园区进退场提醒', dept:0, c:'mid'},
+        {name:'财务数据自动化', dept:0, c:'high'},
+        {name:'DC base 智能巡检', dept:1, c:'high'},
+        {name:'新能源业财合同识别', dept:2, c:'mid'},
+        {name:'SAP/PTP 智能提单', dept:4, c:'high'},
+        {name:'PTP 运维合同识别', dept:4, c:'high'},
+        {name:'档案自动查重', dept:5, c:'mid'},
+        {name:'人事信息识别分类', dept:5, c:'mid'},
+      ]},
+      { label:'行业资讯', tiles: [
+        {name:'竞对市场周报', dept:0, c:'high'},
+        {name:'竞对分析', dept:0, c:'high'},
+        {name:'客户洞察', dept:0, c:'mid'},
+        {name:'IDC 市场周报', dept:1, c:'high'},
+        {name:'每周资讯', dept:2, c:'mid'},
+        {name:'热点观察', dept:2, c:'mid'},
+        {name:'深度联想', dept:2, c:'mid'},
+        {name:'基金-宏观经济季报', dept:3, c:'mid'},
+        {name:'PR-舆情 Newsletter', dept:6, c:'high'},
+      ]},
+      { label:'业务系统', tiles: [
+        {name:'小普 AI 助手', dept:0, c:'high'},
+        {name:'IDC 运维事件分析', dept:1, c:'high'},
+        {name:'集中式光伏运维助手', dept:2, c:'high'},
+        {name:'SAP/PTP 系统助手', dept:4, c:'high'},
+        {name:'CPM/HFM 系统助手', dept:4, c:'high'},
+        {name:'绩效系统数字人', dept:5, c:'mid'},
+      ]},
+      { label:'业务知识库', tiles: [
+        {name:'小普/APM/CMS/BI 知识库', dept:0, c:'high'},
+        {name:'IDC 知识库', dept:1, c:'high'},
+        {name:'运维知识库', dept:2, c:'high'},
+        {name:'运营故障知识库', dept:2, c:'mid'},
+        {name:'SAP/PTP 知识库', dept:4, c:'high'},
+        {name:'CPM/HFM 知识库', dept:4, c:'high'},
+        {name:'档案图书馆', dept:5, c:'mid'},
+      ]},
+    ]},
+    { id:'foundation', label:'基础建设 Foundation', subs: [
+      { label:'安全', tiles: [
+        {name:'AI 安全身份认证', dept:0, c:'high'},
+        {name:'漏洞报告自动化', dept:0, c:'high'},
+        {name:'安全事件报告助手', dept:1, c:'mid'},
+        {name:'AI 安全护栏', dept:3, c:'high'},
+        {name:'AI 权限管理', dept:4, c:'high'},
+        {name:'AI 安全 Newsletter', dept:6, c:'mid'},
+      ]},
+      { label:'治理', tiles: [
+        {name:'AI 大模型合规治理', dept:0, c:'high'},
+        {name:'第三方风险评估', dept:3, c:'mid'},
+        {name:'ITPM Chatbot', dept:5, c:'mid'},
+      ]},
+      { label:'研发', tiles: [
+        {name:'AI 中台', dept:0, c:'high'},
+        {name:'AI 大模型评估/审计', dept:2, c:'high'},
+        {name:'LLM 选型更新机制', dept:4, c:'mid'},
+        {name:'运维 AI 自动化', dept:6, c:'mid'},
+      ]},
+      { label:'数据', tiles: [
+        {name:'AI 数据基建 Foundry', dept:0, c:'high'},
+        {name:'AI Newsletter', dept:2, c:'high'},
+        {name:'多模态数据获取', dept:4, c:'mid'},
+      ]},
+    ]},
+    { id:'pipeline', label:'新项目 Pipeline', subs: [
+      { label:'规划中', tiles: [
+        {name:'OpenClaw 数字员工', dept:0, c:'planned'},
+        {name:'GEO 品牌排序', dept:0, c:'planned'},
+        {name:'AI 监盘', dept:2, c:'planned'},
+        {name:'财务预算归因', dept:4, c:'planned'},
+      ]},
+    ]},
   ]
 };
 
-// ═══════════════════════════════════════════════════════
-//  BUILD GRID TABLE
-// ═══════════════════════════════════════════════════════
-const tbody = document.getElementById('grid-tbody');
-const allTiles = []; // collect references for activation
+// ═════════════════════════════════════════════════════════
+//  渲染热力图
+// ═════════════════════════════════════════════════════════
+const tbody = document.getElementById('heatmap-body');
+let totalTiles = 0, onlineTiles = 0;
 
-function makeTile(tileData, subsectionLabel) {
-  const div = document.createElement('div');
-  div.className = `tile complexity-${tileData.c}`;
-  if (tileData.hot) div.classList.add('hot');
-  div.textContent = tileData.name;
-  const deptName = DEPTS[tileData.dept];
-  div.setAttribute('data-tooltip',
-    `${tileData.name}\n部门: ${deptName}\n分类: ${subsectionLabel.replace('\n',' ')}\n状态: ${tileData.c}`
-  );
-  div.dataset.dept = tileData.dept;
-  div.dataset.name = tileData.name;
-  if (tileData.c !== 'planned') allTiles.push(div);
-  return div;
-}
-
-GRID_DATA.sections.forEach(section => {
-  // Section header
-  const secRow = document.createElement('tr');
-  secRow.className = 'section-row';
+GRID.sections.forEach(sec => {
+  const secTr = document.createElement('tr');
+  secTr.className = 'section-row';
   const secTd = document.createElement('td');
   secTd.colSpan = 8;
-  secTd.textContent = section.label;
-  secRow.appendChild(secTd);
-  tbody.appendChild(secRow);
+  secTd.textContent = sec.label;
+  secTr.appendChild(secTd);
+  tbody.appendChild(secTr);
 
-  section.subsections.forEach(sub => {
-    const row = document.createElement('tr');
-    row.className = 'subsection-row';
-
-    // Label cell
+  sec.subs.forEach(sub => {
+    const tr = document.createElement('tr');
     const labelTd = document.createElement('td');
-    labelTd.innerHTML = sub.label.replace('\n','<br>');
-    row.appendChild(labelTd);
+    labelTd.className = 'sub-label';
+    labelTd.textContent = sub.label;
+    tr.appendChild(labelTd);
 
-    // 7 dept cells
-    const deptCells = [];
+    const stacks = [];
     for (let d = 0; d < 7; d++) {
       const td = document.createElement('td');
+      td.className = 'tile-cell';
       const stack = document.createElement('div');
       stack.className = 'tile-stack';
       td.appendChild(stack);
-      row.appendChild(td);
-      deptCells.push(stack);
+      tr.appendChild(td);
+      stacks.push(stack);
     }
 
-    sub.tiles.forEach(tile => {
-      const t = makeTile(tile, sub.label);
-      deptCells[tile.dept].appendChild(t);
+    sub.tiles.forEach(t => {
+      totalTiles++;
+      if (t.c !== 'planned') onlineTiles++;
+      const div = document.createElement('div');
+      div.className = 'tile ' + t.c + (t.hot ? ' hot' : '');
+      div.textContent = t.name;
+      div.title = `${t.name} · ${DEPTS[t.dept]} · ${sub.label}`;
+      stacks[t.dept].appendChild(div);
     });
 
-    tbody.appendChild(row);
+    tbody.appendChild(tr);
   });
 });
 
-// ═══════════════════════════════════════════════════════
-//  CLOCK
-// ═══════════════════════════════════════════════════════
-function updateClock() {
-  const now = new Date();
-  const h = String(now.getHours()).padStart(2,'0');
-  const m = String(now.getMinutes()).padStart(2,'0');
-  const s = String(now.getSeconds()).padStart(2,'0');
-  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
-}
-updateClock();
-setInterval(updateClock, 1000);
+document.getElementById('heatmap-count').textContent =
+  `${totalTiles} 应用 × 7 部门 · 已上线 ${onlineTiles}`;
 
-// ═══════════════════════════════════════════════════════
-//  KPI COUNTERS + LIVE DATA
-// ═══════════════════════════════════════════════════════
-// State mirrors DataHub /ai-heatmap/llm-data schema:
-//   calls = requests_today, tokens = tokens_today (raw, then formatted to M)
-const kpiState = { calls: 0, tokens: 0, users: 0, apps: 0, pct: 0 };
-
-// Fallback used when kpis.json fetch fails (e.g. double-clicked file://).
-const FALLBACK_DATA = {
-  live: {
-    requests_today: 128547, tokens_today: 2847000000,
-    requests_yday: 125527,  tokens_yday: 2912000000,
-    requests_change_rate: '+2.41%', tokens_change_rate: '-2.23%'
-  },
-  static: { users: 847, apps: 68, penetration: 73.2 }
-};
-
-function formatTokens(raw) {
+// ═════════════════════════════════════════════════════════
+//  数字工具
+// ═════════════════════════════════════════════════════════
+const fmtInt = v => Math.round(v).toLocaleString();
+const fmtTokens = raw => {
   const m = raw / 1e6;
-  if (m >= 1000) return Math.round(m).toLocaleString() + 'M';
+  if (m >= 1000) return (m / 1000).toFixed(2) + 'B';
   if (m >= 10)   return m.toFixed(1) + 'M';
   return m.toFixed(2) + 'M';
-}
+};
+const fmtMoney = v => '¥' + Math.round(v).toLocaleString();
 
-function formatShortNum(v) {
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return Math.round(v).toLocaleString();
-}
-
-// DataHub returns "106.09%" or "-42.01%" — both represent delta vs yesterday.
-function parseChangeRate(str) {
+function parseRate(str) {
   if (str == null) return null;
-  const cleaned = String(str).trim().replace(/[+%\s]/g, '');
-  const delta = parseFloat(cleaned);
-  if (isNaN(delta)) return null;
-  const isUp = delta >= 0;
+  const n = parseFloat(String(str).replace(/[+%\s]/g, ''));
+  if (isNaN(n)) return null;
   return {
-    isUp,
-    displayText: (isUp ? '↑ +' : '↓ -') + Math.abs(delta).toFixed(2) + '% vs 昨日',
-    compactText: (isUp ? '↑ +' : '↓ -') + Math.abs(delta).toFixed(2) + '%'
+    up: n >= 0,
+    text: (n >= 0 ? '↑ +' : '↓ -') + Math.abs(n).toFixed(2) + '%'
   };
 }
 
-function animateCounter(el, from, to, duration, formatter, onComplete) {
+function animateTo(el, from, to, duration, formatter, onDone) {
   const start = performance.now();
   function step(now) {
     const t = Math.min((now - start) / duration, 1);
-    const ease = 1 - Math.pow(1 - t, 3);
-    const val = Math.round(from + (to - from) * ease);
-    el.textContent = formatter(val);
+    const e = 1 - Math.pow(1 - t, 3);
+    el.textContent = formatter(from + (to - from) * e);
     if (t < 1) requestAnimationFrame(step);
-    else if (onComplete) onComplete();
+    else if (onDone) onDone();
   }
   requestAnimationFrame(step);
 }
 
-function applyTrend(el, parsed) {
-  if (!parsed) { el.textContent = '—'; el.className = 'kpi-trend'; return; }
-  el.textContent = parsed.displayText;
-  el.className = 'kpi-trend ' + (parsed.isUp ? 'trend-up' : 'trend-down');
+function applyChange(el, rate, suffix = ' vs 昨日') {
+  const p = parseRate(rate);
+  if (!p) { el.textContent = '—'; el.className = 'kpi-change'; return; }
+  el.innerHTML = p.text + '<span class="kpi-change-note">' + suffix + '</span>';
+  el.className = 'kpi-change ' + (p.up ? 'up' : 'down');
 }
 
-function renderCompareCard(live) {
-  const pairs = [
-    { key: 'calls',  today: live.requests_today || 0, yday: live.requests_yday || 0,
-      rate: live.requests_change_rate, fmt: v => v.toLocaleString() },
-    { key: 'tokens', today: live.tokens_today   || 0, yday: live.tokens_yday   || 0,
-      rate: live.tokens_change_rate,   fmt: formatShortNum }
-  ];
-  pairs.forEach(p => {
-    const max = Math.max(p.today, p.yday, 1);
-    document.getElementById(`cmp-${p.key}-today-val`).textContent = p.fmt(p.today);
-    document.getElementById(`cmp-${p.key}-yday-val`).textContent  = p.fmt(p.yday);
-    document.getElementById(`cmp-${p.key}-today-bar`).style.width = (p.today / max * 100) + '%';
-    document.getElementById(`cmp-${p.key}-yday-bar`).style.width  = (p.yday  / max * 100) + '%';
-    const parsed = parseChangeRate(p.rate);
-    const rateEl = document.getElementById(`cmp-${p.key}-rate`);
-    if (parsed) {
-      rateEl.textContent = parsed.compactText;
-      rateEl.className = 'change-rate ' + (parsed.isUp ? 'up' : 'down');
-    }
+// ═════════════════════════════════════════════════════════
+//  趋势折线
+// ═════════════════════════════════════════════════════════
+function renderTrend(trend) {
+  const svg = document.getElementById('trend-svg');
+  // 清除旧元素（保留 defs）
+  [...svg.querySelectorAll(':not(defs)')].forEach(n => { if (n.tagName !== 'defs') n.remove(); });
+
+  const W = 600, H = 180, PAD_L = 40, PAD_R = 10, PAD_T = 15, PAD_B = 25;
+  const innerW = W - PAD_L - PAD_R, innerH = H - PAD_T - PAD_B;
+  const data = trend.requests || [];
+  const dates = trend.dates || [];
+  if (data.length === 0) return;
+
+  const max = Math.max(...data) * 1.15;
+  const min = Math.min(...data) * 0.85;
+  const range = max - min;
+
+  // 防除零: 1 个数据点居中, 所有值相等时 y 走中线
+  const xAt = i => data.length < 2
+    ? PAD_L + innerW / 2
+    : PAD_L + (i / (data.length - 1)) * innerW;
+  const yAt = v => range === 0
+    ? PAD_T + innerH / 2
+    : PAD_T + innerH - ((v - min) / range) * innerH;
+
+  // 网格线
+  for (let i = 0; i < 4; i++) {
+    const y = PAD_T + (i / 3) * innerH;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ln.setAttribute('class','trend-grid');
+    ln.setAttribute('x1', PAD_L); ln.setAttribute('x2', W - PAD_R);
+    ln.setAttribute('y1', y);     ln.setAttribute('y2', y);
+    svg.appendChild(ln);
+  }
+
+  // Y 轴刻度
+  for (let i = 0; i < 4; i++) {
+    const y = PAD_T + (i / 3) * innerH;
+    const val = max - (i / 3) * (max - min);
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('class','trend-axis');
+    txt.setAttribute('x', 4); txt.setAttribute('y', y + 3);
+    txt.textContent = val >= 1000 ? (val/1000).toFixed(0) + 'k' : Math.round(val);
+    svg.appendChild(txt);
+  }
+
+  // 折线路径
+  const line = data.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i)} ${yAt(v)}`).join(' ');
+  const area = line + ` L ${xAt(data.length-1)} ${PAD_T+innerH} L ${PAD_L} ${PAD_T+innerH} Z`;
+
+  const areaEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  areaEl.setAttribute('class','trend-area');
+  areaEl.setAttribute('d', area);
+  svg.appendChild(areaEl);
+
+  const lineEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  lineEl.setAttribute('class','trend-line');
+  lineEl.setAttribute('d', line);
+  svg.appendChild(lineEl);
+
+  // 点 + X 轴
+  data.forEach((v, i) => {
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('class','trend-dot');
+    c.setAttribute('cx', xAt(i)); c.setAttribute('cy', yAt(v));
+    c.setAttribute('r', i === data.length - 1 ? 3.2 : 2);
+    svg.appendChild(c);
+
+    const xl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    xl.setAttribute('class','trend-axis');
+    xl.setAttribute('x', xAt(i)); xl.setAttribute('y', H - 8);
+    xl.setAttribute('text-anchor','middle');
+    xl.textContent = dates[i];
+    svg.appendChild(xl);
   });
 }
 
-async function fetchLiveData() {
+// ═════════════════════════════════════════════════════════
+//  调用平台数字面板
+// ═════════════════════════════════════════════════════════
+function renderPlatforms(rows) {
+  const body = document.getElementById('platforms-body');
+  body.innerHTML = '';
+
+  // 表头
+  const head = document.createElement('div');
+  head.className = 'plat-row header';
+  head.innerHTML = `
+    <div>平台</div>
+    <div>调用量</div>
+    <div>Tokens</div>
+    <div>本月成本</div>
+  `;
+  body.appendChild(head);
+
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'plat-row';
+    // requests/tokens/cost 走数值格式化，安全；platform 来自接口，用 textContent 防 XSS
+    const costHTML = r.cost_cny > 0
+      ? `<span class="val">¥${Math.round(r.cost_cny).toLocaleString()}</span>`
+      : `<span class="val muted">—</span>`;
+    row.innerHTML = `
+      <div class="plat-name"></div>
+      <div class="plat-metric">
+        <span class="val">${fmtInt(r.requests || 0)}</span>
+        <span class="lbl">REQUESTS</span>
+      </div>
+      <div class="plat-metric">
+        <span class="val">${fmtTokens(r.tokens || 0)}</span>
+        <span class="lbl">TOKENS</span>
+      </div>
+      <div class="plat-metric cost">
+        ${costHTML}
+        <span class="lbl">CNY · 本月</span>
+      </div>
+    `;
+    row.querySelector('.plat-name').textContent = r.platform || '';
+    body.appendChild(row);
+  });
+}
+
+// ═════════════════════════════════════════════════════════
+//  应用数据
+// ═════════════════════════════════════════════════════════
+async function loadData() {
   try {
     const r = await fetch('kpis.json', { cache: 'no-store' });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return await r.json();
   } catch (e) {
-    console.warn('[fetchLiveData]', e);
+    console.warn('[loadData]', e);
     return null;
   }
 }
 
-function applyLiveData(data, { animate }) {
-  const live = data.live || {};
-  const stat = data.static || {};
-  const tCalls  = live.requests_today || 0;
-  const tTokens = live.tokens_today   || 0;
-  const tUsers  = stat.users || 0;
-  const tApps   = stat.apps || 0;
-  const tPct    = stat.penetration || 0;
+const FALLBACK = {
+  live:   { requests_today: 128547, tokens_today: 2847000000,
+            requests_yday: 125527,  tokens_yday: 2912000000,
+            requests_change_rate: '+2.41%', tokens_change_rate: '-2.23%' },
+  users:  { distinct_users_30d: 376, scope_note: '仅含 AI-Buddy' },
+  apps:   { total_online: 76, planned: 4, delta_this_month: 3 },
+  cost:   { current_month_cny: 128450, change_rate: '-9.74%' },
+  trend_7d: { dates:['5/3','5/4','5/5','5/6','5/7','5/8','5/9'],
+              requests:[98210,112340,105870,118920,125527,120440,128547] },
+  platforms: [
+    { platform: '百炼',  requests: 74560, tokens: 1_620_000_000, cost_cny: 78320 },
+    { platform: 'Azure', requests: 53987, tokens: 1_227_000_000, cost_cny: 50130 }
+  ]
+};
 
-  const callsEl  = document.getElementById('kpi-calls');
-  const tokensEl = document.getElementById('kpi-tokens');
-  const usersEl  = document.getElementById('kpi-users');
-  const appsEl   = document.getElementById('kpi-apps');
-  const pctEl    = document.getElementById('kpi-pct');
+function apply(data, { animate }) {
+  const live  = data.live  || {};
+  const users = data.users || {};
+  const apps  = data.apps  || {};
+  const cost  = data.cost  || {};
+
+  // L1
+  const callsEl  = document.getElementById('l1-calls');
+  const tokensEl = document.getElementById('l1-tokens');
+  const usersEl  = document.getElementById('l2-users');
+  const appsEl   = document.getElementById('l2-apps');
+  const costEl   = document.getElementById('l2-cost');
 
   if (animate) {
-    // Set state in onComplete so slow-tick intervals stay idle during intro animation.
-    animateCounter(callsEl,  0, tCalls,  2000, v => v.toLocaleString(), () => { kpiState.calls = tCalls; });
-    animateCounter(tokensEl, 0, tTokens, 2200, formatTokens,             () => { kpiState.tokens = tTokens; });
-    animateCounter(usersEl,  0, tUsers,  1800, v => v.toLocaleString(), () => { kpiState.users = tUsers; });
-    animateCounter(appsEl,   0, tApps,   1500, v => v.toString(),        () => { kpiState.apps = tApps; });
-    let p = 0;
-    const ticker = setInterval(() => {
-      p = Math.min(p + 0.8, tPct);
-      pctEl.textContent = p.toFixed(1) + '%';
-      if (p >= tPct) { clearInterval(ticker); kpiState.pct = tPct; }
-    }, 30);
+    animateTo(callsEl,  0, live.requests_today || 0, 2000, v => fmtInt(v));
+    animateTo(tokensEl, 0, live.tokens_today   || 0, 2200, v => fmtTokens(v));
+    animateTo(usersEl,  0, users.distinct_users_30d || 0, 1800, v => fmtInt(v));
+    animateTo(appsEl,   0, apps.total_online || 0, 1400, v => Math.round(v).toString());
+    animateTo(costEl,   0, cost.current_month_cny || 0, 2000, v => fmtMoney(v));
   } else {
-    kpiState.calls  = tCalls;
-    kpiState.tokens = tTokens;
-    kpiState.users  = tUsers;
-    kpiState.apps   = tApps;
-    kpiState.pct    = tPct;
-    callsEl.textContent  = tCalls.toLocaleString();
-    tokensEl.textContent = formatTokens(tTokens);
-    usersEl.textContent  = tUsers.toLocaleString();
-    appsEl.textContent   = tApps.toString();
-    pctEl.textContent    = tPct.toFixed(1) + '%';
+    callsEl.textContent  = fmtInt(live.requests_today || 0);
+    tokensEl.textContent = fmtTokens(live.tokens_today || 0);
+    usersEl.textContent  = fmtInt(users.distinct_users_30d || 0);
+    appsEl.textContent   = String(apps.total_online || 0);
+    costEl.textContent   = fmtMoney(cost.current_month_cny || 0);
   }
 
-  applyTrend(document.getElementById('kpi-calls-trend'),  parseChangeRate(live.requests_change_rate));
-  applyTrend(document.getElementById('kpi-tokens-trend'), parseChangeRate(live.tokens_change_rate));
-  renderCompareCard(live);
+  applyChange(document.getElementById('l1-calls-change'),  live.requests_change_rate);
+  applyChange(document.getElementById('l1-tokens-change'), live.tokens_change_rate);
+  applyChange(document.getElementById('l2-cost-change'),   cost.change_rate, ' vs 上月');
+
+  // hints
+  document.getElementById('l2-users-hint').textContent =
+    users.scope_note || '仅含 AI-Buddy';
+  const deltaTxt = apps.delta_this_month != null
+    ? `本月 +${apps.delta_this_month} · 规划中 ${apps.planned || 0}`
+    : `规划中 ${apps.planned || 0}`;
+  document.getElementById('l2-apps-hint').textContent = deltaTxt;
+
+  if (data.trend_7d)   renderTrend(data.trend_7d);
+  if (data.platforms)  renderPlatforms(data.platforms);
+
+  // footer
+  const now = new Date();
+  const p = v => String(v).padStart(2, '0');
+  document.getElementById('update-time').textContent =
+    `${p(now.getHours())}:${p(now.getMinutes())}:${p(now.getSeconds())}`;
 }
 
 window.addEventListener('load', async () => {
-  const data = (await fetchLiveData()) || FALLBACK_DATA;
-  applyLiveData(data, { animate: true });
-
-  // Poll every 60s
+  const d = (await loadData()) || FALLBACK;
+  apply(d, { animate: true });
   setInterval(async () => {
-    const d = await fetchLiveData();
-    if (d) applyLiveData(d, { animate: false });
+    const nd = await loadData();
+    if (nd) apply(nd, { animate: false });
   }, 60000);
 });
-
-// Slow-tick for "live" feel between polls. Guards against running before real data arrives.
-setInterval(() => {
-  if (kpiState.calls <= 0) return;
-  kpiState.calls += Math.floor(Math.random() * 8) + 1;
-  document.getElementById('kpi-calls').textContent = kpiState.calls.toLocaleString();
-}, 1500);
-
-setInterval(() => {
-  if (kpiState.users <= 0) return;
-  const jitter = Math.random() < 0.5 ? 1 : -1;
-  kpiState.users = Math.max(10, kpiState.users + (Math.random() < 0.3 ? jitter * 2 : jitter));
-  document.getElementById('kpi-users').textContent = kpiState.users.toLocaleString();
-}, 3000);
-
-setInterval(() => {
-  if (kpiState.tokens <= 0) return;
-  // Proportional tick — visible in M-formatted display across wide value ranges.
-  const tick = Math.max(1, Math.floor(kpiState.tokens * (0.00002 + Math.random() * 0.00003)));
-  kpiState.tokens += tick;
-  document.getElementById('kpi-tokens').textContent = formatTokens(kpiState.tokens);
-}, 2500);
-
-// ═══════════════════════════════════════════════════════
-//  TILE ACTIVATION
-// ═══════════════════════════════════════════════════════
-function activateRandomTile() {
-  if (allTiles.length === 0) return;
-  const count = Math.random() < 0.3 ? 2 : 1;
-  for (let i = 0; i < count; i++) {
-    const tile = allTiles[Math.floor(Math.random() * allTiles.length)];
-    if (!tile.classList.contains('hot')) {
-      tile.classList.add('active');
-      const duration = 800 + Math.random() * 2200;
-      setTimeout(() => tile.classList.remove('active'), duration);
-    }
-  }
-  const nextIn = 200 + Math.random() * 400;
-  setTimeout(activateRandomTile, nextIn);
-}
-setTimeout(activateRandomTile, 1000);
-
-// ═══════════════════════════════════════════════════════
-//  ACTIVITY FEED
-// ═══════════════════════════════════════════════════════
-const feedApps = [
-  ['Asset','AI智能助理'],['Asset','竞对市场活动周报'],['Asset','AI智能问数(数据检索/分析/洞察)'],
-  ['IDC','DC base AI智能巡检'],['IDC','IDC市场周报'],
-  ['新能源','集中式光伏运维助手'],['新能源','AI大模型评估/审计'],
-  ['基金/其他','隐山-投资Memo辅助分析'],
-  ['财务','SAP/PTP智能提单'],['财务','财务汇率自动化'],['财务','税金分析助手'],
-  ['HR','GLP AI文稿校对'],['HR','绩效系统数字人'],
-  ['Legal/IA/PR','PR-舆情翻译'],['Legal/IA/PR','IA-内审翻译'],['Legal/IA/PR','GLP AI PPT助手'],
-];
-
-const feedEl = document.getElementById('activity-feed');
-
-function addFeedItem() {
-  const [dept, app] = feedApps[Math.floor(Math.random() * feedApps.length)];
-  const now = new Date();
-  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-
-  const item = document.createElement('div');
-  item.className = 'feed-item';
-  item.innerHTML = `<span class="feed-ts">${ts}</span> <span class="feed-dept">[${dept}]</span><br><span class="feed-app">正在使用 ▷ ${app}</span>`;
-
-  feedEl.insertBefore(item, feedEl.firstChild);
-
-  // Remove old items (use children, not lastChild, to skip text nodes)
-  while (feedEl.children.length > 10) {
-    const last = feedEl.children[feedEl.children.length - 1];
-    last.classList.add('fade-out');
-    setTimeout(() => { if (last.parentNode) last.remove(); }, 500);
-  }
-
-  const nextIn = 1500 + Math.random() * 2500;
-  setTimeout(addFeedItem, nextIn);
-}
-setTimeout(addFeedItem, 800);
-
-// ═══════════════════════════════════════════════════════
-//  PARTICLE CANVAS  (throttled + visibility-aware)
-// ═══════════════════════════════════════════════════════
-(function() {
-  const canvas = document.getElementById('particle-canvas');
-  const ctx = canvas.getContext('2d');
-  let W, H, particles, rafId = null;
-  // Pre-baked color strings — avoid creating new strings every frame
-  const DOT_COLOR  = 'rgba(93,255,159,';
-  const LINE_COLOR = 'rgba(45,138,80,';
-  const N = 35;          // reduced from 60 — cuts n² work by ~66%
-  const MAX_DIST = 100;  // reduced from 120
-
-  function resize() {
-    W = canvas.width  = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-  }
-
-  function initParticles() {
-    particles = Array.from({length: N}, () => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 0.35,
-      vy: (Math.random() - 0.5) * 0.35,
-      r: Math.random() * 1.5 + 0.5,
-      alpha: (Math.random() * 0.4 + 0.1).toFixed(2)
-    }));
-  }
-
-  let lastFrame = 0;
-  const FPS_CAP = 30; // no need for 60fps on a background canvas
-  const FRAME_MS = 1000 / FPS_CAP;
-
-  function draw(ts) {
-    rafId = requestAnimationFrame(draw);
-    if (ts - lastFrame < FRAME_MS) return;
-    lastFrame = ts;
-
-    ctx.clearRect(0, 0, W, H);
-
-    for (let i = 0; i < N; i++) {
-      const p = particles[i];
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < 0) p.x = W; else if (p.x > W) p.x = 0;
-      if (p.y < 0) p.y = H; else if (p.y > H) p.y = 0;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, 6.2832);
-      ctx.fillStyle = DOT_COLOR + p.alpha + ')';
-      ctx.fill();
-    }
-
-    // Batch all lines with a single strokeStyle pass per alpha bucket
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < N; i++) {
-      for (let j = i + 1; j < N; j++) {
-        const dx = particles[i].x - particles[j].x;
-        const dy = particles[i].y - particles[j].y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < MAX_DIST * MAX_DIST) {
-          const a = ((1 - Math.sqrt(d2) / MAX_DIST) * 0.25).toFixed(2);
-          ctx.beginPath();
-          ctx.moveTo(particles[i].x, particles[i].y);
-          ctx.lineTo(particles[j].x, particles[j].y);
-          ctx.strokeStyle = LINE_COLOR + a + ')';
-          ctx.stroke();
-        }
-      }
-    }
-  }
-
-  function start() { if (!rafId) rafId = requestAnimationFrame(draw); }
-  function stop()  { if (rafId)  { cancelAnimationFrame(rafId); rafId = null; } }
-
-  // Pause when tab is hidden — biggest source of runaway memory growth
-  document.addEventListener('visibilitychange', () => {
-    document.hidden ? stop() : start();
-  });
-
-  resize();
-  initParticles();
-  start();
-  window.addEventListener('resize', () => { resize(); initParticles(); });
-})();
 </script>
 </body>
 </html>
