@@ -26,3 +26,6 @@ logs/
 
 # DataHub 接口验证产物（真实返回数据，不入 git）
 fixtures/
+
+# 内部指标审查文档（含真实数据快照，仅走钉钉/邮件，不入 git）
+METRICS_REVIEW_*.md
