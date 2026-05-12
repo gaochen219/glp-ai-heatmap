@@ -23,3 +23,6 @@ logs/
 
 # 旧方案归档（git history 已保留；此处本地保留一份副本备查）
 .archive/
+
+# DataHub 接口验证产物（真实返回数据，不入 git）
+fixtures/
