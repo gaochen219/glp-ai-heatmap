@@ -350,13 +350,36 @@ python3 -m http.server 8080
 # 然后浏览器访问 http://localhost:8080/glp_ai_command_center.html?mock=1
 ```
 
-### 7.3 Mock / Real 切换
+### 7.3 Mock / Real / 本地真实数据 三种模式
 
-**URL 参数控制**：
-- `?mock=1` → 走内置 `MOCK` 常量（本地默认）
-- 不加参数 → 走 `/ai-heatmap/api/*`（生产/test 部署用）
+**方式 A — Mock（无网络要求，最快）**
+```bash
+open "glp_ai_command_center.html?mock=1"
+```
+走内置 `MOCK` 常量。本地开发视觉调试用。
 
-也可以改代码顶部 `MOCK_MODE` 常量强制。
+**方式 B — 生产/test 环境（真实数据，由 vibeportal 后端提供）**
+```
+http://test.langfuse.glp-inc.cn/ai-command-center
+```
+不加 URL 参数，前端 fetch 同域 `/ai-heatmap/api/*`。只有部署到内网服务器才能跑。
+
+**方式 C — 本地直连 DataHub（真实数据，Mac 上也能看）** ★ 推荐
+```bash
+pip install requests          # 仅首次
+export DATAHUB_APP_KEY=...
+export DATAHUB_APP_SECRET=...
+python3 local_proxy.py
+```
+然后访问 `http://127.0.0.1:8765/`。
+
+`local_proxy.py` 同时做两件事：
+1. serve 当前目录的 HTML + 静态资源
+2. 把 `/ai-heatmap/api/*` 代理到 DataHub（带 HMAC-SHA1 签名）
+
+**等同于 vibeportal 后端的 1:1 行为**，前端代码零改动。接手后未来后端上线，`local_proxy.py` 也可以继续用作本地开发代理。
+
+AppKey / AppSecret 只在 Python 进程里，**不进浏览器**。脚本默认只监听 `127.0.0.1`，不接收外部连接。不要部署到公网。
 
 ### 7.4 修改 80 应用清单
 
