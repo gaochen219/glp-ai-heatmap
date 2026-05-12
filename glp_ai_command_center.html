@@ -1816,17 +1816,22 @@ const APPS_HARDCODED = {          // application count is static; maintained in 
   delta_this_month: 3,            // TODO: move to a small JSON if needed
 };
 
-/* Mock responses matching the API contract — used only for local dev / preview */
+/* Mock responses matching the API contract — used only for local dev / preview.
+ * Shape mirrors real DataHub wrapper: { status, message, pagination, data: [...] }
+ * fetchEndpoint() 会统一解包；渲染函数看到的是 data[0] 或 data 数组。 */
 const MOCK = {
   live: {
-    requests_today: 128547, tokens_today: 2847000000,
-    requests_yday:  125527, tokens_yday:  2912000000,
-    requests_change_rate: '+2.41%', tokens_change_rate: '-2.23%',
+    status: 2000, message: '', pagination: null,
+    data: [{
+      requests_today: 128547, tokens_today: 2847000000,
+      requests_yday:  125527, tokens_yday:  2912000000,
+      requests_change_rate: '+2.41%', tokens_change_rate: '-2.23%',
+    }],
   },
   trend: {
-    // 7 days, NOT including today (matches Q2: from_unixtime(start_time) < CURDATE())
-    days: 7,
-    series: (() => {
+    // Q2 SQL 已过滤 < CURDATE()，返回近 7 天不含当日
+    status: 2000, message: '', pagination: null,
+    data: (() => {
       const dates = ['2026-05-05','2026-05-06','2026-05-07','2026-05-08','2026-05-09','2026-05-10','2026-05-11'];
       const teamPools = [
         { team: 'AI创新',      share: 0.34, models: [['qwen3.6-plus', 0.55], ['qwen-max', 0.30], ['qwen-turbo', 0.15]] },
@@ -1838,8 +1843,7 @@ const MOCK = {
         { team: '基金/投资',   share: 0.05, models: [['qwen-max', 0.60], ['gpt-4o', 0.40]] },
         { team: '资产管理',    share: 0.04, models: [['qwen-turbo', 0.70], ['qwen3.6-plus', 0.30]] },
       ];
-      // model platform mapping (cosmetic only)
-      const srcOf = m => m.startsWith('gpt') ? 'Azure' : 'bailian';
+      const srcOf = m => m.startsWith('gpt') ? 'azure' : 'bailian';    // match real (lowercase)
       const out = [];
       dates.forEach((d, di) => {
         const dayBase = 98000 + di * 5200 + Math.round(Math.random() * 9000);
@@ -1848,8 +1852,8 @@ const MOCK = {
             const reqs = Math.round(dayBase * t.share * mShare);
             if (reqs <= 0) return;
             out.push({
-              day: d,
-              source: srcOf(model),
+              t_date: d,                        // real field is t_date, not day
+              source: srcOf(model),             // lowercase, matches real data
               workspace: 'llm-' + ((ti * 7 + 13).toString(16)).padStart(16, '0'),
               team: t.team,
               model: model,
@@ -1864,25 +1868,60 @@ const MOCK = {
   },
   cost: null,   // 账单接口待后端补充；置 null → 前端显示 "—"
   users: {
-    distinct_users_30d: 403,
-    distinct_users_90d: 696,
-    scope_note: '仅含 AI-Buddy',
+    status: 2000, message: '', pagination: null,
+    data: [{
+      distinct_users_30d: 403,
+      distinct_users_90d: 696,
+    }],
   },
 };
 
-async function fetchEndpoint(path, init) {
-  if (MOCK_MODE) {
-    // simulate network: small delay, always succeed
-    await new Promise(r => setTimeout(r, 120 + Math.random() * 180));
-    if (path.startsWith('/live'))  return MOCK.live;
-    if (path.startsWith('/trend')) return MOCK.trend;
-    if (path.startsWith('/cost'))  return MOCK.cost;
-    if (path.startsWith('/users')) return MOCK.users;
-    return null;
+/* Normalize DataHub standard response wrapper {status, data:[...]} into
+ * the shape each render function expects.
+ *
+ * Real response examples (from fixtures/ via verify_datahub.py):
+ *   /live  → data = [{ requests_today, tokens_today, ... }]          (single row)
+ *   /users → data = [{ distinct_users_30d, distinct_users_90d }]     (single row)
+ *   /trend → data = [{ t_date, source, workspace, team, model, requests, tokens }, ...]
+ *
+ * After unwrap:
+ *   /live  → { requests_today, ... }                 (object)
+ *   /users → { distinct_users_30d, ... }             (object)
+ *   /trend → { series: [{ day, source, team, model, requests, tokens, ... }] }
+ *            (day aliased from t_date for downstream aggregation)
+ */
+function unwrapResponse(path, body) {
+  if (body == null) return null;       // honors explicit MOCK.cost = null
+  if (body.status != null) {           // DataHub wrapper
+    if (body.status !== 2000) {
+      throw new Error(`biz code ${body.status}: ${body.message || ''}`);
+    }
+    const rows = Array.isArray(body.data) ? body.data : [];
+    if (path.startsWith('/trend')) {
+      return { series: rows.map(r => ({ ...r, day: r.t_date || r.day })) };
+    }
+    // live / users / cost (future): first row is the scalar object
+    return rows[0] || null;
   }
-  const r = await fetch(API_BASE + path, { cache: 'no-store', ...(init || {}) });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path);
-  return await r.json();
+  // Already-unwrapped shape (e.g. if vibeportal chooses to unwrap server-side)
+  return body;
+}
+
+async function fetchEndpoint(path, init) {
+  let body;
+  if (MOCK_MODE) {
+    await new Promise(r => setTimeout(r, 120 + Math.random() * 180));
+    if (path.startsWith('/live'))  body = MOCK.live;
+    else if (path.startsWith('/trend')) body = MOCK.trend;
+    else if (path.startsWith('/cost'))  body = MOCK.cost;
+    else if (path.startsWith('/users')) body = MOCK.users;
+    else body = null;
+  } else {
+    const r = await fetch(API_BASE + path, { cache: 'no-store', ...(init || {}) });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path);
+    body = await r.json();
+  }
+  return unwrapResponse(path, body);
 }
 
 /* Track per-endpoint health. 3 consecutive failures → degrade sys pill. */
@@ -1922,12 +1961,19 @@ function renderLive(d, animate) {
   applyChange(document.getElementById('l1-tokens-change'), d.tokens_change_rate, 'vs 昨日');
 }
 
-/* Display-layer source mapping: backend returns "bailian" / "Azure", UI shows "百炼" / "Azure". */
-const SOURCE_LABEL = { bailian: '百炼', Bailian: '百炼', BAILIAN: '百炼' };
+/* Display-layer source mapping: backend returns "bailian"/"azure"/"Azure", UI shows "百炼"/"Azure". */
+const SOURCE_LABEL = {
+  bailian: '百炼', Bailian: '百炼', BAILIAN: '百炼',
+  azure:   'Azure', Azure:   'Azure', AZURE:   'Azure',
+};
 const displaySource = s => SOURCE_LABEL[s] || s || '—';
 
 /* Aggregate /trend series into shapes the existing renderers expect.
- * Note: Q2 SQL already excludes today (from_unixtime < CURDATE()), so series is "近 7 天不含当日". */
+ * Note: Q2 SQL already excludes today (from_unixtime < CURDATE()), so series is "近 7 天不含当日".
+ *
+ * team/model 空值处理：真实数据里大量行 team/model 为 null（云平台治理规划中），
+ * 归并为"未归类"并保留在表里，如实反映"目前只有 X 个团队/模型有标注"的现状。
+ * 0 请求量的空值行自然会因为倒序排最后。 */
 function aggregateTrend(trend) {
   const series = trend.series || [];
   const byDay   = new Map();   // day    -> {requests, tokens}
@@ -1935,24 +1981,28 @@ function aggregateTrend(trend) {
   const byTeam  = new Map();   // team   -> {requests, tokens}
   const byModel = new Map();   // model  -> {requests, tokens, source}
 
+  const UNLABELED = '未归类';
+
   series.forEach(r => {
     const req = r.requests || 0, tok = r.tokens || 0;
 
-    const d = byDay.get(r.day) || { requests: 0, tokens: 0 };
-    d.requests += req; d.tokens += tok;
-    byDay.set(r.day, d);
+    if (r.day) {
+      const d = byDay.get(r.day) || { requests: 0, tokens: 0 };
+      d.requests += req; d.tokens += tok;
+      byDay.set(r.day, d);
+    }
 
     const srcKey = displaySource(r.source);
     const p = byPlat.get(srcKey) || { requests: 0, tokens: 0 };
     p.requests += req; p.tokens += tok;
     byPlat.set(srcKey, p);
 
-    const teamKey = (r.team && r.team.trim()) || '未知团队';
+    const teamKey = (r.team && String(r.team).trim()) || UNLABELED;
     const t = byTeam.get(teamKey) || { requests: 0, tokens: 0 };
     t.requests += req; t.tokens += tok;
     byTeam.set(teamKey, t);
 
-    const modelKey = (r.model && r.model.trim()) || '未知模型';
+    const modelKey = (r.model && String(r.model).trim()) || UNLABELED;
     const m = byModel.get(modelKey) || { requests: 0, tokens: 0, source: srcKey };
     m.requests += req; m.tokens += tok;
     byModel.set(modelKey, m);

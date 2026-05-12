@@ -50,96 +50,112 @@
 
 **路径前缀**：`/ai-heatmap/api/`（方便 Nginx 二级目录配置）
 **方法**：`GET`，无入参（除 `/trend?days=7` 可选）
-**响应**：`Content-Type: application/json`，HTTP 200 + 业务 body
-**失败**：非 200 或 `{error: "..."}`，前端降级为 "—" 占位
+**响应包装**：DataHub 原生响应为 `{status, message, pagination, data:[...]}`。后端 vibeportal **可以透传此结构**，前端 `unwrapResponse()` 会统一解包；也可以在后端自行解包成"裸响应"，前端兼容两种。
+**HTTP**：成功 200；失败建议 HTTP 5xx + `{error: "..."}` JSON，前端降级为 "—" 占位
+**DataHub 业务 code**：2000 = 成功，其他见 docx §2（4005/4014 签名错、4006 缺参等）。前端仅检查 `status !== 2000` 作失败处理。
 
 ### 1. `GET /ai-heatmap/api/live`
 
 **用途**：首屏 KPI 1 + 2（今日调用量 / Tokens + 日环比）
 **对应 SQL**：Q1（`model_usage_stats` 今日 vs 昨日 full-day）
-**响应**：
+**真实响应**（已通过 `verify_datahub.py` 验证）：
 ```json
 {
-  "requests_today": 120214,
-  "tokens_today":   3095817941,
-  "requests_yday":  112254,
-  "tokens_yday":    2480826598,
-  "requests_change_rate": "+7.09%",
-  "tokens_change_rate":   "+24.79%"
+  "status": 2000, "message": "", "pagination": null,
+  "data": [{
+    "requests_today": 4313,
+    "tokens_today":   158879144,
+    "requests_yday":  3066,
+    "tokens_yday":    99710848,
+    "requests_change_rate": "+40.67%",
+    "tokens_change_rate":   "+59.34%"
+  }]
 }
 ```
+注意：`data` 是 **数组、长度为 1**，前端取 `data[0]`。
 
 ### 2. `GET /ai-heatmap/api/trend?days=7`
 
 **用途**：近 7 天调用趋势折线 + 调用平台 / 团队 / 模型三张表（共用同一份数据，前端按维度聚合）
-**对应 SQL**：Q2（按 `source × workspace × team × model × day` 聚合）
+**对应 SQL**：Q2（按 `source × workspace × team × model × t_date` 聚合）
 **时间口径**：**近 7 天不含当日**（SQL 过滤 `from_unixtime(start_time) < CURDATE()`）
   - 理由：今日数据分钟级实时，和前 6 天完整日口径不同，放一起会让折线末端误导性偏低
   - KPI 区的"今日调用量/Tokens"走 `/live`（Q1），仍是分钟级实时；两处口径区分明确
-**响应**：
+**真实响应**（fixture 摘录）：
 ```json
 {
-  "days": 7,
-  "series": [
-    {
-      "day": "2026-05-05", "source": "bailian",
-      "workspace": "llm-01j2krtwyx37oap1",
+  "status": 2000, "message": "", "pagination": null,
+  "data": [
+    { "source": "bailian", "workspace": "llm-01j2krtwyx37oap1",
       "team": "AI创新", "model": "qwen3.6-plus",
-      "requests": 237, "tokens": 1899214
-    },
-    { "day": "2026-05-05", "source": "Azure", "workspace": "...",
-      "team": "光储运维", "model": "gpt-4o-mini",
-      "requests": 120, "tokens": 840000 }
-    // ... 按 source×workspace×team×model×day 粒度，多行
+      "t_date": "2026-05-09", "requests": 237, "tokens": 1899214 },
+    { "source": "azure", "workspace": null,
+      "team": null, "model": null,
+      "t_date": "2026-05-09", "requests": 974, "tokens": 49350524 }
+    // ... 多行，按 source × workspace × team × model × t_date 粒度
   ]
 }
 ```
 
-**展示层映射**（前端处理，后端照实返回）：
+**展示层映射**（前端 `SOURCE_LABEL` 处理，后端照实返回原值）：
 - `source: "bailian"` → 展示为 `百炼`
-- `source: "Azure"` → 保持 `Azure`
-- `workspace` 字段**前端忽略**，仅聚合 key 使用（不上屏）
-- `team` / `model` 原样展示
+- `source: "azure"` / `"Azure"` → 展示为 `Azure`
+- `team` / `model` 为 `null` / `""` 时 → 前端聚合归并为 `未归类`（真实数据大量行 team/model 为 null，云平台治理规划中）
+- `workspace` 字段**前端忽略**，不上屏
 
-**前端聚合产物**：
-- 折线图：按 `day` 求和 → requests 日序列
-- 调用平台表：按 `source` 求和（近 7 天累计，倒序）
-- 调用团队表：按 `team` 求和（近 7 天累计，倒序）
-- 调用模型表：按 `model` 求和（近 7 天累计，倒序）
+**字段别名**：真实返回使用 `t_date`，前端 `unwrapResponse('/trend', ...)` 会把 `t_date` 同时赋给 `day`，下游聚合代码用哪个都行。
 
-### 3. `GET /ai-heatmap/api/cost`  —  **待后端补充**
+**前端聚合产物**（全部基于近 7 天累计，倒序排列，不截断）：
+- 折线图：按 `t_date` 求和 → requests 日序列
+- 调用平台表：按 `source` 求和
+- 调用团队表：按 `team` 求和
+- 调用模型表：按 `model` 求和
 
-**状态（2026-05-12）**：账单数据接口同事待补，前端本月成本 KPI 暂显 "—"。
+### 3. `GET /ai-heatmap/api/cost`  —  **DataHub 接口未开放**
+
+**状态（2026-05-12）**：DataHub 尚未提供账单对应的 REST endpoint（docx 只给了 SQL，REST 路径待发布）。前端本月成本 KPI 当前显 "—"。
 **用途**：KPI 5（本月成本 + 月环比）+ 后续可考虑给平台表加成本列
 **对应 SQL**：Q3（`model_bill`，按 source × month 聚合，含当月和上月）
-**响应**（约定中，后端可基于此调整）：
+**建议响应**（等 DataHub 发布 REST 接口或 vibeportal 直连 MySQL 后对齐包装格式）：
 ```json
 {
-  "current_month": "2026-05",
-  "prev_month":    "2026-04",
-  "by_source": [
+  "status": 2000, "message": "", "pagination": null,
+  "data": [
     { "source": "bailian", "current_cny": 78320.50, "prev_cny": 85120.00 },
-    { "source": "Azure",   "current_cny": 50130.20, "prev_cny": 55230.80 }
-  ],
-  "total_current_cny": 128450.70,
-  "total_prev_cny":    140350.80,
-  "change_rate":       "-8.48%"
+    { "source": "azure",   "current_cny": 50130.20, "prev_cny": 55230.80 }
+  ]
 }
 ```
-接口就位后前端一次接回，不需要再改结构。
+或保留汇总形式：
+```json
+{
+  "status": 2000,
+  "data": [{
+    "current_month": "2026-05", "prev_month": "2026-04",
+    "by_source": [ ... ],
+    "total_current_cny": 128450.70, "total_prev_cny": 140350.80,
+    "change_rate": "-8.48%"
+  }]
+}
+```
+接口就位后前端加个解包分支即可，视觉结构不变。
 
 ### 4. `GET /ai-heatmap/api/users`
 
 **用途**：KPI 3（30 天活跃用户）
 **对应 SQL**：Q4（`smart_cube_log`，`url='/api/user/info'`，AI-Buddy only）
-**响应**：
+**真实响应**（已验证）：
 ```json
 {
-  "distinct_users_30d": 403,
-  "distinct_users_90d": 696,
-  "scope_note": "仅含 AI-Buddy"
+  "status": 2000, "message": "", "pagination": null,
+  "data": [{
+    "distinct_users_30d": 348,
+    "distinct_users_90d": 707
+  }]
 }
 ```
+注意：`data` 是数组、长度为 1，前端取 `data[0]`。
+"仅含 AI-Buddy" 口径由前端写死标注（`scope_note` 可选字段，后端不需要返回）。
 
 ---
 
@@ -170,13 +186,36 @@
 
 ---
 
-## 六、仍待确认
+## 六、已验证事项（2026-05-12）
 
-### 后端侧（问写后端的同事）
-- [ ] 4 个 endpoint 上线排期？
-- [ ] `/cost` 的 MTD 过滤条件（`model_bill.day` 字段格式？是 `YYYY-MM-DD` 还是 `YYYYMMDD`？）
-- [ ] 失败时后端返回什么格式？（建议：HTTP 5xx + `{error: "..."}` JSON）
+`verify_datahub.py` 脚本从 Mac 实跑，3/3 通过：
+
+| endpoint | HTTP | biz code | 备注 |
+|---|---|---|---|
+| `/dh-engine/api/mysql/ai-heatmap/llm-data`          | 200 | 2000 | 今日 4313 次请求 / 1.58 亿 tokens |
+| `/dh-engine/api/mysql/ai-heatmap/ai-active-users`   | 200 | 2000 | 30 天 348 活跃 / 90 天 707 |
+| `/dh-engine/api/mysql/ai-heatmap/llm-data-detail`   | 200 | 2000 | 7 天 28 行；team/model 大量 null |
+
+**已确认**：
+- HMAC-SHA1 签名协议（docx Python 示例）正确
+- 响应统一 `{status, message, pagination, data:[...]}` 包装
+- `source` 值为小写 `bailian` / `azure`
+- 近 7 天真实 team 维度只有 `AI创新` / `系统研发` 2 个有值（其余 null）
+- 真实 model 维度 6 个：`qwen3.6-plus` / `qwen3-max` / `qwen-plus` / `qwen3.5-plus-2026-02-15` / `deepseek-v4-pro` / `deepseek-v3`（其余 null）
+
+---
+
+## 七、仍待确认
+
+### 后端侧（问写 vibeportal 后端的同事）
+- [ ] 4 个 `/ai-heatmap/api/*` endpoint 上线排期？
+- [ ] 后端是否透传 DataHub 原生包装，还是自行解包成裸响应？（前端两种都兼容）
+- [ ] 失败时返回什么格式？（建议：HTTP 5xx + `{error: "..."}` JSON）
 - [ ] 是否加 `Cache-Control: max-age=30` 减轻 DataHub 压力？
+
+### DataHub 侧
+- [ ] 账单成本接口（Q3 对应的 REST path，docx 里只有 SQL 没有路径）
+- [ ] `team` / `model` 维度什么时候能覆盖更全（当前大部分 null）
 
 ### 生产部署（问运维）
 - [ ] 生产环境的域名是什么？
