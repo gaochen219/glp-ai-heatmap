@@ -803,8 +803,92 @@
   #analysis {
     display: grid;
     grid-template-columns: 1.4fr 1fr;
+    grid-auto-rows: minmax(220px, auto);
     gap: 14px;
-    min-height: 220px;
+  }
+  /* Panel title right-side meta (口径 chip) */
+  .panel-title-note {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--moss);
+    letter-spacing: 1.2px;
+    margin-left: 8px;
+    padding: 1px 6px;
+    border: 1px solid rgba(110,154,133,0.3);
+    border-radius: 2px;
+    background: rgba(110,154,133,0.06);
+    text-transform: uppercase;
+  }
+
+  /* Breakdown tables — 团队 / 模型 / (将来可复用) */
+  .brk {
+    display: flex; flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+    max-height: 320px;
+  }
+  .brk-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11.5px;
+  }
+  .brk-table thead th {
+    position: sticky; top: 0;
+    background: linear-gradient(180deg, rgba(12,30,20,0.95), rgba(8,20,14,0.9));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: var(--moss);
+    font-size: 9px; font-weight: 600;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 8px 12px 7px;
+    border-bottom: 1px solid rgba(57,255,173,0.2);
+    z-index: 1;
+  }
+  .brk-table thead th.num { text-align: right; }
+  .brk-table tbody td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--leaf);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2px;
+  }
+  .brk-table tbody tr:hover td { background: rgba(57,255,173,0.04); }
+  .brk-table tbody td.name {
+    color: #E5F4EC;
+    font-weight: 500;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .brk-table tbody td.num { text-align: right; }
+  .brk-table tbody td.calls { color: var(--neon); font-weight: 600; }
+  .brk-table tbody td.share {
+    position: relative;
+    color: var(--moss);
+    text-align: right;
+    padding-right: 14px;
+  }
+  /* A right-aligned mini bar behind the share % */
+  .brk-bar {
+    position: absolute;
+    right: 14px; bottom: 4px;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(57,255,173,0.15), var(--neon));
+    opacity: 0.55;
+    max-width: 60px;
+  }
+  .brk-table tbody td.tokens { color: var(--ink); }
+  .brk-empty {
+    padding: 24px 12px;
+    color: var(--moss);
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
   }
   .panel {
     background: var(--bg-card);
@@ -1161,10 +1245,12 @@
 
   <!-- ANALYSIS -->
   <section id="analysis">
+    <!-- row 1 -->
     <div class="panel">
       <div class="panel-head">
         <span class="panel-code">TR·02</span>
         <span class="panel-title">近 7 天调用趋势</span>
+        <span class="panel-title-note">不含当日</span>
         <span class="panel-hint" id="trend-hint">Requests · Daily</span>
       </div>
       <div class="panel-body trend-body">
@@ -1183,10 +1269,36 @@
       <div class="panel-head">
         <span class="panel-code">PL·03</span>
         <span class="panel-title">调用平台</span>
-        <span class="panel-hint">Platform · Yesterday</span>
+        <span class="panel-title-note">近 7 天 · 不含当日</span>
+        <span class="panel-hint">Platform</span>
       </div>
       <div class="panel-body">
         <div class="platforms" id="platforms-body"></div>
+      </div>
+    </div>
+
+    <!-- row 2 -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-code">TM·04</span>
+        <span class="panel-title">调用团队</span>
+        <span class="panel-title-note">近 7 天 · 不含当日</span>
+        <span class="panel-hint">Team</span>
+      </div>
+      <div class="panel-body" style="padding: 0;">
+        <div class="brk" id="teams-body"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-code">MD·05</span>
+        <span class="panel-title">调用模型</span>
+        <span class="panel-title-note">近 7 天 · 不含当日</span>
+        <span class="panel-hint">Model</span>
+      </div>
+      <div class="panel-body" style="padding: 0;">
+        <div class="brk" id="models-body"></div>
       </div>
     </div>
   </section>
@@ -1712,29 +1824,45 @@ const MOCK = {
     requests_change_rate: '+2.41%', tokens_change_rate: '-2.23%',
   },
   trend: {
+    // 7 days, NOT including today (matches Q2: from_unixtime(start_time) < CURDATE())
     days: 7,
     series: (() => {
-      const dates = ['2026-05-06','2026-05-07','2026-05-08','2026-05-09','2026-05-10','2026-05-11','2026-05-12'];
+      const dates = ['2026-05-05','2026-05-06','2026-05-07','2026-05-08','2026-05-09','2026-05-10','2026-05-11'];
+      const teamPools = [
+        { team: 'AI创新',      share: 0.34, models: [['qwen3.6-plus', 0.55], ['qwen-max', 0.30], ['qwen-turbo', 0.15]] },
+        { team: '光储运维',    share: 0.18, models: [['gpt-4o-mini', 0.60], ['qwen-max', 0.40]] },
+        { team: 'IDC 数据中心', share: 0.14, models: [['gpt-4o', 0.50], ['qwen3.6-plus', 0.50]] },
+        { team: '财务共享',    share: 0.10, models: [['qwen3.6-plus', 0.70], ['gpt-4o-mini', 0.30]] },
+        { team: '人力资源',    share: 0.08, models: [['qwen-turbo', 0.65], ['qwen3.6-plus', 0.35]] },
+        { team: '法务/审计/PR', share: 0.07, models: [['gpt-4o', 0.55], ['qwen-max', 0.45]] },
+        { team: '基金/投资',   share: 0.05, models: [['qwen-max', 0.60], ['gpt-4o', 0.40]] },
+        { team: '资产管理',    share: 0.04, models: [['qwen-turbo', 0.70], ['qwen3.6-plus', 0.30]] },
+      ];
+      // model platform mapping (cosmetic only)
+      const srcOf = m => m.startsWith('gpt') ? 'Azure' : 'bailian';
       const out = [];
-      dates.forEach((d, i) => {
-        const base = 100000 + i * 4500 + Math.round(Math.random() * 8000);
-        out.push({ day: d, source: '百炼',  requests: Math.round(base * 0.58), tokens: Math.round(base * 0.58 * 22500) });
-        out.push({ day: d, source: 'Azure', requests: Math.round(base * 0.42), tokens: Math.round(base * 0.42 * 21000) });
+      dates.forEach((d, di) => {
+        const dayBase = 98000 + di * 5200 + Math.round(Math.random() * 9000);
+        teamPools.forEach((t, ti) => {
+          t.models.forEach(([model, mShare]) => {
+            const reqs = Math.round(dayBase * t.share * mShare);
+            if (reqs <= 0) return;
+            out.push({
+              day: d,
+              source: srcOf(model),
+              workspace: 'llm-' + ((ti * 7 + 13).toString(16)).padStart(16, '0'),
+              team: t.team,
+              model: model,
+              requests: reqs,
+              tokens: reqs * (18000 + Math.round(Math.random() * 6000)),
+            });
+          });
+        });
       });
       return out;
     })(),
   },
-  cost: {
-    current_month: '2026-05',
-    prev_month:    '2026-04',
-    by_source: [
-      { source: '百炼',  current_cny: 78320.50, prev_cny: 85120.00 },
-      { source: 'Azure', current_cny: 50130.20, prev_cny: 55230.80 },
-    ],
-    total_current_cny: 128450.70,
-    total_prev_cny:    140350.80,
-    change_rate:       '-8.48%',
-  },
+  cost: null,   // 账单接口待后端补充；置 null → 前端显示 "—"
   users: {
     distinct_users_30d: 403,
     distinct_users_90d: 696,
@@ -1794,38 +1922,55 @@ function renderLive(d, animate) {
   applyChange(document.getElementById('l1-tokens-change'), d.tokens_change_rate, 'vs 昨日');
 }
 
-/* Aggregate /trend series into shapes the existing renderers expect */
+/* Display-layer source mapping: backend returns "bailian" / "Azure", UI shows "百炼" / "Azure". */
+const SOURCE_LABEL = { bailian: '百炼', Bailian: '百炼', BAILIAN: '百炼' };
+const displaySource = s => SOURCE_LABEL[s] || s || '—';
+
+/* Aggregate /trend series into shapes the existing renderers expect.
+ * Note: Q2 SQL already excludes today (from_unixtime < CURDATE()), so series is "近 7 天不含当日". */
 function aggregateTrend(trend) {
   const series = trend.series || [];
-  const byDay = new Map();                 // day -> {requests, tokens}
-  const byPlat = new Map();                // source -> {requests, tokens} (yesterday only)
-  let maxDay = '';
+  const byDay   = new Map();   // day    -> {requests, tokens}
+  const byPlat  = new Map();   // source -> {requests, tokens}  (full 7-day window)
+  const byTeam  = new Map();   // team   -> {requests, tokens}
+  const byModel = new Map();   // model  -> {requests, tokens, source}
+
   series.forEach(r => {
-    const cur = byDay.get(r.day) || { requests: 0, tokens: 0 };
-    cur.requests += r.requests || 0;
-    cur.tokens   += r.tokens   || 0;
-    byDay.set(r.day, cur);
-    if (r.day > maxDay) maxDay = r.day;
+    const req = r.requests || 0, tok = r.tokens || 0;
+
+    const d = byDay.get(r.day) || { requests: 0, tokens: 0 };
+    d.requests += req; d.tokens += tok;
+    byDay.set(r.day, d);
+
+    const srcKey = displaySource(r.source);
+    const p = byPlat.get(srcKey) || { requests: 0, tokens: 0 };
+    p.requests += req; p.tokens += tok;
+    byPlat.set(srcKey, p);
+
+    const teamKey = (r.team && r.team.trim()) || '未知团队';
+    const t = byTeam.get(teamKey) || { requests: 0, tokens: 0 };
+    t.requests += req; t.tokens += tok;
+    byTeam.set(teamKey, t);
+
+    const modelKey = (r.model && r.model.trim()) || '未知模型';
+    const m = byModel.get(modelKey) || { requests: 0, tokens: 0, source: srcKey };
+    m.requests += req; m.tokens += tok;
+    byModel.set(modelKey, m);
   });
-  // yesterday = most-recent day in series (DataHub may be T+0 or T-1)
-  series.filter(r => r.day === maxDay).forEach(r => {
-    const cur = byPlat.get(r.source) || { requests: 0, tokens: 0 };
-    cur.requests += r.requests || 0;
-    cur.tokens   += r.tokens   || 0;
-    byPlat.set(r.source, cur);
-  });
+
   const days = [...byDay.keys()].sort();
   return {
-    dates:    days.map(d => d.slice(5).replace('-', '/')),       // "05/12"
+    dates:    days.map(d => d.slice(5).replace('-', '/')),
     requests: days.map(d => byDay.get(d).requests),
     tokens:   days.map(d => byDay.get(d).tokens),
-    byPlatform: [...byPlat.entries()].map(([source, v]) => ({ source, ...v })),
+    byPlatform: [...byPlat.entries()].map(([source, v])  => ({ source, ...v })),
+    byTeam:     [...byTeam.entries()].map(([team, v])    => ({ team,   ...v })),
+    byModel:    [...byModel.entries()].map(([model, v])  => ({ model,  ...v })),
   };
 }
 
 function renderTrendData(trend) {
   if (!trend) {
-    // clear SVGs, skip sparklines
     const svg = document.getElementById('trend-svg');
     [...svg.childNodes].forEach(n => { if (n.tagName !== 'defs') n.remove(); });
     return null;
@@ -1835,6 +1980,69 @@ function renderTrendData(trend) {
   renderSpark('spark-calls',  agg.requests);
   renderSpark('spark-tokens', agg.tokens);
   return agg;
+}
+
+/* Generic breakdown table for 团队 / 模型 panels.
+ * rows: [{ name, requests, tokens }, ...], rendered sorted desc, no truncation. */
+function renderBreakdown(containerId, nameKey, rows) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  if (!rows || rows.length === 0) {
+    container.innerHTML = '<div class="brk-empty">暂无数据 · —</div>';
+    return;
+  }
+  const sorted = [...rows].sort((a, b) => (b.requests || 0) - (a.requests || 0));
+  const total  = sorted.reduce((s, r) => s + (r.requests || 0), 0) || 1;
+  const maxReq = sorted[0].requests || 1;
+
+  const table = document.createElement('table');
+  table.className = 'brk-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>名称</th>
+        <th class="num">调用量</th>
+        <th class="num">占比</th>
+        <th class="num">Tokens</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+  sorted.forEach(r => {
+    const name = r[nameKey] || '—';
+    const req  = r.requests || 0;
+    const tok  = r.tokens   || 0;
+    const pct  = (req / total) * 100;
+    const barW = Math.max(4, Math.round((req / maxReq) * 60));
+
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.className = 'name';
+    tdName.title = name;
+    tdName.textContent = name;
+    tr.appendChild(tdName);
+
+    const tdCalls = document.createElement('td');
+    tdCalls.className = 'num calls';
+    tdCalls.textContent = fmtInt(req);
+    tr.appendChild(tdCalls);
+
+    const tdShare = document.createElement('td');
+    tdShare.className = 'num share';
+    tdShare.innerHTML = `${pct.toFixed(1)}%<span class="brk-bar" style="width:${barW}px"></span>`;
+    tr.appendChild(tdShare);
+
+    const tdTok = document.createElement('td');
+    tdTok.className = 'num tokens';
+    tdTok.textContent = fmtTokens(tok);
+    tr.appendChild(tdTok);
+
+    tbody.appendChild(tr);
+  });
+  container.innerHTML = '';
+  container.appendChild(table);
 }
 
 /* Merge trend.byPlatform (requests/tokens) + cost.by_source (cost) into plat-rows */
@@ -1847,9 +2055,10 @@ function renderPlatformsMerged(trendAgg, costData) {
   }
   if (costData && costData.by_source) {
     costData.by_source.forEach(c => {
-      const cur = rows.get(c.source) || { platform: c.source, requests: 0, tokens: 0, cost_cny: 0 };
+      const key = displaySource(c.source);   // "bailian" → "百炼" so it matches trend keys
+      const cur = rows.get(key) || { platform: key, requests: 0, tokens: 0, cost_cny: 0 };
       cur.cost_cny = c.current_cny || 0;
-      rows.set(c.source, cur);
+      rows.set(key, cur);
     });
   }
   // Stable order: 百炼 first, then Azure, then others
@@ -1932,11 +2141,15 @@ async function pollTrend(animate = false) {
     const d = await fetchEndpoint('/trend?days=7');
     lastTrendAgg = renderTrendData(d);
     renderPlatformsMerged(lastTrendAgg, lastCost);
+    renderBreakdown('teams-body',  'team',  lastTrendAgg ? lastTrendAgg.byTeam  : null);
+    renderBreakdown('models-body', 'model', lastTrendAgg ? lastTrendAgg.byModel : null);
     markResult('trend', true);
   } catch (e) {
     console.warn('[trend]', e);
     renderTrendData(null);
     renderPlatformsMerged(null, lastCost);
+    renderBreakdown('teams-body',  'team',  null);
+    renderBreakdown('models-body', 'model', null);
     lastTrendAgg = null;
     markResult('trend', false);
   }

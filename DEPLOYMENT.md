@@ -11,13 +11,13 @@
 大屏可视化 GLP 集团 AI 应用使用情况，AI VP 层级演示/日常可视。
 
 **7 项上屏指标**（完整口径见 [METRICS.md](./METRICS.md)）：
-1. 今日调用量 + 日环比
-2. 今日 Tokens + 日环比
+1. 今日调用量 + 日环比（分钟级实时）
+2. 今日 Tokens + 日环比（分钟级实时）
 3. 30 天活跃用户（仅 AI-Buddy）
 4. 已上线应用数（80 个，前端硬编码）
-5. 本月成本 ¥ + 月环比
-6. 近 7 天调用趋势
-7. 调用平台（百炼 / Azure 的调用量 / Tokens / 本月成本）
+5. 本月成本 ¥ + 月环比 **（账单接口待同事补充，暂显 "—"）**
+6. 近 7 天调用趋势 **（不含当日，口径明确区别于 KPI 1/2）**
+7. 调用平台 / 团队 / 模型三张表（均为近 7 天不含当日）
 
 ---
 
@@ -71,42 +71,62 @@
 
 ### 2. `GET /ai-heatmap/api/trend?days=7`
 
-**用途**：近 7 天调用趋势折线 + 调用平台面板（requests/tokens 部分）
-**对应 SQL**：Q2（按 source × day 聚合）
+**用途**：近 7 天调用趋势折线 + 调用平台 / 团队 / 模型三张表（共用同一份数据，前端按维度聚合）
+**对应 SQL**：Q2（按 `source × workspace × team × model × day` 聚合）
+**时间口径**：**近 7 天不含当日**（SQL 过滤 `from_unixtime(start_time) < CURDATE()`）
+  - 理由：今日数据分钟级实时，和前 6 天完整日口径不同，放一起会让折线末端误导性偏低
+  - KPI 区的"今日调用量/Tokens"走 `/live`（Q1），仍是分钟级实时；两处口径区分明确
 **响应**：
 ```json
 {
   "days": 7,
   "series": [
-    { "day": "2026-05-06", "source": "百炼", "requests": 74560, "tokens": 1620000000 },
-    { "day": "2026-05-06", "source": "Azure", "requests": 53987, "tokens": 1227000000 },
-    { "day": "2026-05-07", "source": "百炼", "requests": 78210, "tokens": 1680000000 }
-    // ... 7 days × 2 sources = 14 rows（当日无调用则缺行，前端补 0）
+    {
+      "day": "2026-05-05", "source": "bailian",
+      "workspace": "llm-01j2krtwyx37oap1",
+      "team": "AI创新", "model": "qwen3.6-plus",
+      "requests": 237, "tokens": 1899214
+    },
+    { "day": "2026-05-05", "source": "Azure", "workspace": "...",
+      "team": "光储运维", "model": "gpt-4o-mini",
+      "requests": 120, "tokens": 840000 }
+    // ... 按 source×workspace×team×model×day 粒度，多行
   ]
 }
 ```
-前端聚合逻辑：
-- `trend_7d.requests` = 每天所有 source 求和
-- `platforms[i].requests` = 昨日 source=X 的 requests
 
-### 3. `GET /ai-heatmap/api/cost`
+**展示层映射**（前端处理，后端照实返回）：
+- `source: "bailian"` → 展示为 `百炼`
+- `source: "Azure"` → 保持 `Azure`
+- `workspace` 字段**前端忽略**，仅聚合 key 使用（不上屏）
+- `team` / `model` 原样展示
 
-**用途**：KPI 5（本月成本 + 月环比）+ 调用平台面板（cost 部分）
+**前端聚合产物**：
+- 折线图：按 `day` 求和 → requests 日序列
+- 调用平台表：按 `source` 求和（近 7 天累计，倒序）
+- 调用团队表：按 `team` 求和（近 7 天累计，倒序）
+- 调用模型表：按 `model` 求和（近 7 天累计，倒序）
+
+### 3. `GET /ai-heatmap/api/cost`  —  **待后端补充**
+
+**状态（2026-05-12）**：账单数据接口同事待补，前端本月成本 KPI 暂显 "—"。
+**用途**：KPI 5（本月成本 + 月环比）+ 后续可考虑给平台表加成本列
 **对应 SQL**：Q3（`model_bill`，按 source × month 聚合，含当月和上月）
-**响应**：
+**响应**（约定中，后端可基于此调整）：
 ```json
 {
   "current_month": "2026-05",
   "prev_month":    "2026-04",
   "by_source": [
-    { "source": "百炼",  "current_cny": 78320.50, "prev_cny": 85120.00 },
-    { "source": "Azure", "current_cny": 50130.20, "prev_cny": 55230.80 }
+    { "source": "bailian", "current_cny": 78320.50, "prev_cny": 85120.00 },
+    { "source": "Azure",   "current_cny": 50130.20, "prev_cny": 55230.80 }
   ],
   "total_current_cny": 128450.70,
   "total_prev_cny":    140350.80,
   "change_rate":       "-8.48%"
 }
 ```
+接口就位后前端一次接回，不需要再改结构。
 
 ### 4. `GET /ai-heatmap/api/users`
 
